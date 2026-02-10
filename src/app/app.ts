@@ -4,11 +4,22 @@ import { ChangeDetectorRef, Component, OnDestroy, OnInit, inject } from '@angula
 import {
   ApiOrder,
   BrowserStorage,
-  QuoteMessage,
   ResolvedThemeMode,
   SymbolGroup,
   ThemePreference
 } from './orders.types';
+import {
+  applyBidUpdates,
+  buildCloseMessage,
+  diffSymbolSubscriptions,
+  getOrderIdsBySymbol,
+  getOrderSymbols,
+  hasOrderById,
+  isThemePreference,
+  parseQuoteBidUpdates,
+  removeGroupOrders,
+  removeSingleOrder
+} from './app.helpers';
 import { buildGroupsFromOrders, extractOrders } from './orders.utils';
 
 @Component({
@@ -58,13 +69,8 @@ export class App implements OnInit, OnDestroy {
     this.detachSystemThemeListener();
     this.closeQuotesSocket();
 
-    if (this.reconnectTimerId !== null) {
-      clearTimeout(this.reconnectTimerId);
-    }
-
-    if (this.snackbarTimerId !== null) {
-      clearTimeout(this.snackbarTimerId);
-    }
+    this.reconnectTimerId = this.clearTimer(this.reconnectTimerId);
+    this.snackbarTimerId = this.clearTimer(this.snackbarTimerId);
   }
 
   protected toggleGroup(symbol: string): void {
@@ -79,29 +85,24 @@ export class App implements OnInit, OnDestroy {
   protected removeGroup(symbol: string, event: Event): void {
     event.stopPropagation();
 
-    const orderIds = this.ordersData
-      .filter((order) => order.symbol === symbol)
-      .map((order) => order.id);
+    const orderIds = getOrderIdsBySymbol(this.ordersData, symbol);
 
     if (orderIds.length === 0) {
       return;
     }
 
-    this.ordersData = this.ordersData.filter((order) => order.symbol !== symbol);
-    this.rebuildGroups(true);
-    this.syncQuoteSubscriptions();
+    this.ordersData = removeGroupOrders(this.ordersData, symbol);
+    this.afterOrdersDataChange();
     this.showCloseMessage(orderIds);
   }
 
   protected removeOrder(symbol: string, orderId: number): void {
-    const exists = this.ordersData.some((order) => order.symbol === symbol && order.id === orderId);
-    if (!exists) {
+    if (!hasOrderById(this.ordersData, symbol, orderId)) {
       return;
     }
 
-    this.ordersData = this.ordersData.filter((order) => !(order.symbol === symbol && order.id === orderId));
-    this.rebuildGroups(true);
-    this.syncQuoteSubscriptions();
+    this.ordersData = removeSingleOrder(this.ordersData, symbol, orderId);
+    this.afterOrdersDataChange();
     this.showCloseMessage([orderId]);
   }
 
@@ -111,10 +112,7 @@ export class App implements OnInit, OnDestroy {
 
   protected closeSnackbar(): void {
     this.isSnackbarVisible = false;
-    if (this.snackbarTimerId !== null) {
-      clearTimeout(this.snackbarTimerId);
-      this.snackbarTimerId = null;
-    }
+    this.snackbarTimerId = this.clearTimer(this.snackbarTimerId);
   }
 
   protected toggleLightDark(): void {
@@ -130,7 +128,7 @@ export class App implements OnInit, OnDestroy {
 
   protected onThemePreferenceChange(event: Event): void {
     const mode = (event.target as HTMLSelectElement | null)?.value;
-    if (mode === 'light' || mode === 'dark' || mode === 'system') {
+    if (isThemePreference(mode)) {
       this.setThemePreference(mode);
     }
   }
@@ -245,14 +243,16 @@ export class App implements OnInit, OnDestroy {
   }
 
   private syncQuoteSubscriptions(): void {
-    const desiredSymbols = new Set(this.ordersData.map((order) => order.symbol));
+    const desiredSymbols = getOrderSymbols(this.ordersData);
 
     if (!this.quotesSocket || this.quotesSocket.readyState !== WebSocket.OPEN) {
       return;
     }
 
-    const symbolsToAdd = Array.from(desiredSymbols).filter((symbol) => !this.subscribedSymbols.has(symbol));
-    const symbolsToRemove = Array.from(this.subscribedSymbols).filter((symbol) => !desiredSymbols.has(symbol));
+    const { symbolsToAdd, symbolsToRemove } = diffSymbolSubscriptions(
+      desiredSymbols,
+      this.subscribedSymbols
+    );
 
     this.sendSocketEvent('/subscribe/addlist', symbolsToAdd);
     this.sendSocketEvent('/subscribe/removelist', symbolsToRemove);
@@ -279,27 +279,12 @@ export class App implements OnInit, OnDestroy {
   }
 
   private handleQuoteMessage(rawData: string): void {
-    let payload: QuoteMessage | null = null;
-    try {
-      payload = JSON.parse(rawData) as QuoteMessage;
-    } catch {
+    const updates = parseQuoteBidUpdates(rawData);
+    if (updates.length === 0) {
       return;
     }
 
-    if (!payload || payload.p !== '/quotes/subscribed' || !Array.isArray(payload.d)) {
-      return;
-    }
-
-    let didChange = false;
-    for (const quote of payload.d) {
-      if (typeof quote?.s === 'string' && typeof quote?.b === 'number') {
-        if (this.bidBySymbol.get(quote.s) !== quote.b) {
-          this.bidBySymbol.set(quote.s, quote.b);
-          didChange = true;
-        }
-      }
-    }
-
+    const didChange = applyBidUpdates(this.bidBySymbol, updates);
     if (!didChange) {
       return;
     }
@@ -309,17 +294,14 @@ export class App implements OnInit, OnDestroy {
   }
 
   private showCloseMessage(orderIds: number[]): void {
-    const idsText = orderIds.join(', ');
-    this.showSnackbar(`Zamknięto zlecenie nr ${idsText}`);
+    this.showSnackbar(buildCloseMessage(orderIds));
   }
 
   private showSnackbar(message: string): void {
     this.snackbarMessage = message;
     this.isSnackbarVisible = true;
 
-    if (this.snackbarTimerId !== null) {
-      clearTimeout(this.snackbarTimerId);
-    }
+    this.snackbarTimerId = this.clearTimer(this.snackbarTimerId);
 
     this.snackbarTimerId = setTimeout(() => {
       this.isSnackbarVisible = false;
@@ -334,7 +316,7 @@ export class App implements OnInit, OnDestroy {
     }
 
     const storedTheme = this.getBrowserStorage()?.getItem(this.themeStorageKey);
-    if (storedTheme === 'light' || storedTheme === 'dark' || storedTheme === 'system') {
+    if (isThemePreference(storedTheme)) {
       return storedTheme;
     }
 
@@ -434,5 +416,18 @@ export class App implements OnInit, OnDestroy {
         this.cdr.detectChanges();
       }
     });
+  }
+
+  private afterOrdersDataChange(): void {
+    this.rebuildGroups(true);
+    this.syncQuoteSubscriptions();
+  }
+
+  private clearTimer(timerId: ReturnType<typeof setTimeout> | null): null {
+    if (timerId !== null) {
+      clearTimeout(timerId);
+    }
+
+    return null;
   }
 }
