@@ -86,7 +86,7 @@ describe('App E2E-style flows', () => {
     const socket = MockWebSocket.instances[0];
 
     const groupRowsBefore = root.querySelectorAll('tr.group-row');
-    const ethGroupProfitCellBefore = groupRowsBefore[1]?.querySelector('td:nth-child(7)') as HTMLElement;
+    const ethGroupProfitCellBefore = groupRowsBefore[1]?.querySelector('td:nth-child(4)') as HTMLElement;
     expect(ethGroupProfitCellBefore.classList.contains('profit-positive')).toBe(false);
     expect(ethGroupProfitCellBefore.classList.contains('profit-negative')).toBe(false);
 
@@ -103,7 +103,7 @@ describe('App E2E-style flows', () => {
     fixture.detectChanges(false);
 
     const groupRowsAfter = root.querySelectorAll('tr.group-row');
-    const ethGroupProfitCellAfter = groupRowsAfter[1]?.querySelector('td:nth-child(7)') as HTMLElement;
+    const ethGroupProfitCellAfter = groupRowsAfter[1]?.querySelector('td:nth-child(4)') as HTMLElement;
     expect(ethGroupProfitCellAfter.classList.contains('profit-positive')).toBe(true);
   });
 });

@@ -1,6 +1,6 @@
-import { ApiOrder, QuoteMessage, ThemePreference } from './orders.types';
+import { ApiOrder, QuoteSocketEvent, ThemePreference } from './orders.types';
 
-type QuoteBidUpdate = {
+export type QuoteBidUpdate = {
   symbol: string;
   bid: number;
 };
@@ -38,10 +38,11 @@ export function diffSymbolSubscriptions(desiredSymbols: Set<string>, subscribedS
 }
 
 export function parseQuoteBidUpdates(rawData: string): QuoteBidUpdate[] {
-  let payload: QuoteMessage | null = null;
+  let payload: QuoteSocketEvent | null = null;
   try {
-    payload = JSON.parse(rawData) as QuoteMessage;
-  } catch {
+    payload = JSON.parse(rawData) as QuoteSocketEvent;
+  } catch (error) {
+    console.error('Cannot parse websocket quote payload', error);
     return [];
   }
 

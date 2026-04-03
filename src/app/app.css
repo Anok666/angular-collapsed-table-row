@@ -168,7 +168,7 @@ td,
 
 table {
   width: 100%;
-  min-width: 980px;
+  min-width: 760px;
   border-collapse: collapse;
 }
 
@@ -207,6 +207,28 @@ tbody tr:last-child td {
 
 .detail-row:hover {
   background: var(--row-hover-bg);
+}
+
+.expanded-details-row td {
+  padding: 0;
+  background: transparent;
+  border-bottom: 0;
+}
+
+.details-table {
+  width: 100%;
+  min-width: 980px;
+  border-collapse: collapse;
+}
+
+.details-table th,
+.details-table td {
+  padding: 0.65rem 1rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.details-table thead th {
+  background: var(--header-bg);
 }
 
 .group-toggle {

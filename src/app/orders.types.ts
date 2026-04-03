@@ -1,22 +1,29 @@
+export type OrderSide = 'BUY' | 'SELL';
+
 export interface ApiOrder {
   id: number;
   symbol: string;
-  side: string;
+  side: OrderSide;
   openTime: number;
   openPrice: number;
   swap: number;
   size: number;
 }
 
-export interface QuoteMessage {
-  p: string;
+export type QuotesSubscribedEvent = {
+  p: '/quotes/subscribed';
   d: Array<{
     s: string;
     b: number;
     a: number;
     t: number;
   }>;
-}
+};
+
+export type QuoteSocketEvent = QuotesSubscribedEvent | {
+  p: string;
+  d?: unknown;
+};
 
 export interface Order extends ApiOrder {
   profit: number;

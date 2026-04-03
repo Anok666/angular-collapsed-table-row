@@ -24,6 +24,7 @@ export function extractOrders(response: unknown): ApiOrder[] {
 export function buildGroupsFromOrders(
   ordersData: ApiOrder[],
   bidBySymbol: Map<string, number>,
+  expandedSymbols: ReadonlySet<string> = new Set(),
   exponentBySymbol: Record<string, number> = MULTIPLIER_EXPONENT_BY_SYMBOL
 ): SymbolGroup[] {
   const groupedOrders = new Map<string, Order[]>();
@@ -36,7 +37,9 @@ export function buildGroupsFromOrders(
     groupedOrders.get(order.symbol)?.push(normalizeOrder(order, bidBySymbol, exponentBySymbol));
   }
 
-  return Array.from(groupedOrders.entries()).map(([symbol, orders]) => createGroup(symbol, orders));
+  return Array.from(groupedOrders.entries()).map(([symbol, orders]) =>
+    createGroup(symbol, orders, expandedSymbols.has(symbol))
+  );
 }
 
 export function calculateProfit(
@@ -64,7 +67,7 @@ function normalizeOrder(
   };
 }
 
-function createGroup(symbol: string, orders: Order[]): SymbolGroup {
+function createGroup(symbol: string, orders: Order[], expanded: boolean): SymbolGroup {
   const count = orders.length;
   const openPriceAvg = count === 0
     ? 0
@@ -81,7 +84,7 @@ function createGroup(symbol: string, orders: Order[]): SymbolGroup {
     profitAvg,
     swapSum: orders.reduce((acc, order) => acc + order.swap, 0),
     sizeSum: orders.reduce((acc, order) => acc + order.size, 0),
-    expanded: false
+    expanded
   };
 }
 
@@ -99,7 +102,7 @@ function toApiOrder(rawOrder: unknown): ApiOrder | null {
 
   const id = Number(raw['id']);
   const symbol = typeof raw['symbol'] === 'string' ? raw['symbol'] : '';
-  const side = typeof raw['side'] === 'string' ? raw['side'] : '';
+  const side = raw['side'] === 'BUY' || raw['side'] === 'SELL' ? raw['side'] : '';
   const openTime = Number(raw['openTime']);
   const openPrice = Number(raw['openPrice'] ?? raw['price'] ?? raw['closePrice']);
   const swap = Number(raw['swap']);
