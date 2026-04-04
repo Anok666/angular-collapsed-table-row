@@ -11,17 +11,21 @@
         (click)="toggleLightDark()"
         [attr.aria-label]="themeMode === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'"
       >
-        <span class="theme-icon sun-icon" *ngIf="themeMode === 'light'" aria-hidden="true">
-          <svg viewBox="0 0 24 24" focusable="false">
-            <circle cx="12" cy="12" r="4"></circle>
-            <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"></path>
-          </svg>
-        </span>
-        <span class="theme-icon moon-icon" *ngIf="themeMode === 'dark'" aria-hidden="true">
-          <svg viewBox="0 0 24 24" focusable="false">
-            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
-          </svg>
-        </span>
+        @if (themeMode === 'light') {
+          <span class="theme-icon sun-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" focusable="false">
+              <circle cx="12" cy="12" r="4"></circle>
+              <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"></path>
+            </svg>
+          </span>
+        }
+        @if (themeMode === 'dark') {
+          <span class="theme-icon moon-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" focusable="false">
+              <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+            </svg>
+          </span>
+        }
         {{ themeMode === 'dark' ? 'Light' : 'Dark' }}
       </button>
       <label class="theme-select-label" for="theme-preference">Mode</label>
@@ -39,112 +43,122 @@
     </div>
   </header>
 
-  <p class="state-message" *ngIf="isLoading">Pobieranie danych...</p>
+  @if (isLoading) {
+    <p class="state-message">Pobieranie danych...</p>
+  }
 
-  <div class="state-message error" *ngIf="!isLoading && errorMessage">
-    <p>{{ errorMessage }}</p>
-    <button type="button" class="action-btn" (click)="retryLoad()">Ponów</button>
-  </div>
+  @if (!isLoading && errorMessage) {
+    <div class="state-message error">
+      <p>{{ errorMessage }}</p>
+      <button type="button" class="action-btn" (click)="retryLoad()">Ponów</button>
+    </div>
+  }
 
-  <section class="table-wrapper" aria-label="Tabela zleceń" *ngIf="!isLoading && !errorMessage && groups.length > 0">
-    <table>
-      <thead>
-        <tr>
-          <th scope="col">Symbol</th>
-          <th scope="col">Open Price</th>
-          <th scope="col">Swap</th>
-          <th scope="col">Profit</th>
-          <th scope="col">Size</th>
-          <th scope="col">Usuń</th>
-        </tr>
-      </thead>
-      <tbody>
-        <ng-container *ngFor="let group of groups; trackBy: trackBySymbol">
-          <tr class="group-row" (click)="toggleGroup(group.symbol)">
-            <td>
-              <span class="group-toggle">{{ group.expanded ? '▼' : '▶' }}</span>
-              {{ group.symbol }} ({{ group.count }})
-            </td>
-            <td>{{ group.openPriceAvg | number: '1.2-5' }}</td>
-            <td>{{ group.swapSum | number: '1.2-5' }}</td>
-            <td
-              [class.profit-positive]="group.profitAvg > 0"
-              [class.profit-negative]="group.profitAvg < 0"
-            >
-              {{ group.profitAvg | number: '1.2-5' }}
-            </td>
-            <td>{{ group.sizeSum | number: '1.2-5' }}</td>
-            <td>
-              <button
-                type="button"
-                class="delete-btn"
-                (click)="removeGroup(group.symbol, $event)"
-                [attr.aria-label]="'Usuń grupę ' + group.symbol"
-              >
-                ✕
-              </button>
-            </td>
+  @if (!isLoading && !errorMessage && groups.length > 0) {
+    <section class="table-wrapper" aria-label="Tabela zleceń">
+      <table>
+        <thead>
+          <tr>
+            <th scope="col">Symbol</th>
+            <th scope="col">Open Price</th>
+            <th scope="col">Swap</th>
+            <th scope="col">Profit</th>
+            <th scope="col">Size</th>
+            <th scope="col">Usuń</th>
           </tr>
-
-          <ng-container *ngIf="group.expanded">
-            <tr class="expanded-details-row">
-              <td colspan="6">
-                <table class="details-table" [attr.aria-label]="'Szczegóły zleceń dla ' + group.symbol">
-                  <thead>
-                    <tr>
-                      <th scope="col">ID</th>
-                      <th scope="col">Symbol</th>
-                      <th scope="col">Side</th>
-                      <th scope="col">Open Time</th>
-                      <th scope="col">Open Price</th>
-                      <th scope="col">Swap</th>
-                      <th scope="col">Profit</th>
-                      <th scope="col">Size</th>
-                      <th scope="col">Usuń</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr class="detail-row" *ngFor="let order of group.orders; trackBy: trackByOrderId">
-                      <td>{{ order.id }}</td>
-                      <td>{{ order.symbol }}</td>
-                      <td>{{ order.side }}</td>
-                      <td>{{ order.openTime | date: 'dd.MM.yyyy HH:mm:ss' }}</td>
-                      <td>{{ order.openPrice | number: '1.2-5' }}</td>
-                      <td>{{ order.swap | number: '1.2-5' }}</td>
-                      <td
-                        [class.profit-positive]="order.profit > 0"
-                        [class.profit-negative]="order.profit < 0"
-                      >
-                        {{ order.profit | number: '1.2-5' }}
-                      </td>
-                      <td>{{ order.size | number: '1.2-5' }}</td>
-                      <td>
-                        <button
-                          type="button"
-                          class="delete-btn"
-                          (click)="removeOrder(group.symbol, order.id)"
-                          [attr.aria-label]="'Usuń zlecenie ' + order.id"
-                        >
-                          ✕
-                        </button>
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
+        </thead>
+        <tbody>
+          @for (group of groups; track group.symbol) {
+            <tr class="group-row" (click)="toggleGroup(group.symbol)">
+              <td>
+                <span class="group-toggle">{{ group.expanded ? '▼' : '▶' }}</span>
+                {{ group.symbol }} ({{ group.count }})
+              </td>
+              <td>{{ group.openPriceAvg | number: '1.2-5' }}</td>
+              <td>{{ group.swapSum | number: '1.2-5' }}</td>
+              <td
+                [class.profit-positive]="group.profitAvg > 0"
+                [class.profit-negative]="group.profitAvg < 0"
+              >
+                {{ group.profitAvg | number: '1.2-5' }}
+              </td>
+              <td>{{ group.sizeSum | number: '1.2-5' }}</td>
+              <td>
+                <button
+                  type="button"
+                  class="delete-btn"
+                  (click)="removeGroup(group.symbol, $event)"
+                  [attr.aria-label]="'Usuń grupę ' + group.symbol"
+                >
+                  ✕
+                </button>
               </td>
             </tr>
-          </ng-container>
-        </ng-container>
-      </tbody>
-    </table>
-  </section>
 
-  <p class="state-message" *ngIf="!isLoading && !errorMessage && groups.length === 0">
-    Brak danych do wyświetlenia w tabeli.
-  </p>
+            @if (group.expanded) {
+              <tr class="expanded-details-row">
+                <td colspan="6">
+                  <table class="details-table" [attr.aria-label]="'Szczegóły zleceń dla ' + group.symbol">
+                    <thead>
+                      <tr>
+                        <th scope="col">ID</th>
+                        <th scope="col">Symbol</th>
+                        <th scope="col">Side</th>
+                        <th scope="col">Open Time</th>
+                        <th scope="col">Open Price</th>
+                        <th scope="col">Swap</th>
+                        <th scope="col">Profit</th>
+                        <th scope="col">Size</th>
+                        <th scope="col">Usuń</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      @for (order of group.orders; track order.id) {
+                        <tr class="detail-row">
+                          <td>{{ order.id }}</td>
+                          <td>{{ order.symbol }}</td>
+                          <td>{{ order.side }}</td>
+                          <td>{{ order.openTime | date: 'dd.MM.yyyy HH:mm:ss' }}</td>
+                          <td>{{ order.openPrice | number: '1.2-5' }}</td>
+                          <td>{{ order.swap | number: '1.2-5' }}</td>
+                          <td
+                            [class.profit-positive]="order.profit > 0"
+                            [class.profit-negative]="order.profit < 0"
+                          >
+                            {{ order.profit | number: '1.2-5' }}
+                          </td>
+                          <td>{{ order.size | number: '1.2-5' }}</td>
+                          <td>
+                            <button
+                              type="button"
+                              class="delete-btn"
+                              (click)="removeOrder(group.symbol, order.id)"
+                              [attr.aria-label]="'Usuń zlecenie ' + order.id"
+                            >
+                              ✕
+                            </button>
+                          </td>
+                        </tr>
+                      }
+                    </tbody>
+                  </table>
+                </td>
+              </tr>
+            }
+          }
+        </tbody>
+      </table>
+    </section>
+  }
 
-  <div class="snackbar" *ngIf="isSnackbarVisible" role="status" aria-live="polite">
-    <span>{{ snackbarMessage }}</span>
-    <button type="button" class="snackbar-close" (click)="closeSnackbar()" aria-label="Zamknij komunikat">✕</button>
-  </div>
+  @if (!isLoading && !errorMessage && groups.length === 0) {
+    <p class="state-message">Brak danych do wyświetlenia w tabeli.</p>
+  }
+
+  @if (isSnackbarVisible) {
+    <div class="snackbar" role="status" aria-live="polite">
+      <span>{{ snackbarMessage }}</span>
+      <button type="button" class="snackbar-close" (click)="closeSnackbar()" aria-label="Zamknij komunikat">✕</button>
+    </div>
+  }
 </main>
