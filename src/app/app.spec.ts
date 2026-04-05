@@ -52,13 +52,13 @@ describe('App', () => {
     const fixture = await createAndFlushComponent();
     const app = fixture.componentInstance as any;
 
-    expect(app.groups.length).toBe(3);
-    expect(app.groups[0].symbol).toBe('BTCUSD');
-    expect(app.groups[0].count).toBe(3);
-    expect(app.groups[1].symbol).toBe('ETHUSD');
-    expect(app.groups[1].count).toBe(2);
-    expect(app.groups[2].symbol).toBe('AUDCHF');
-    expect(app.groups[2].count).toBe(1);
+    expect(app.groups().length).toBe(3);
+    expect(app.groups()[0].symbol).toBe('BTCUSD');
+    expect(app.groups()[0].count).toBe(3);
+    expect(app.groups()[1].symbol).toBe('ETHUSD');
+    expect(app.groups()[1].count).toBe(2);
+    expect(app.groups()[2].symbol).toBe('AUDCHF');
+    expect(app.groups()[2].count).toBe(1);
   });
 
   it('should subscribe websocket for all loaded symbols', async () => {
@@ -89,8 +89,8 @@ describe('App', () => {
       ]
     });
 
-    const btcGroup = app.groups.find((group: any) => group.symbol === 'BTCUSD');
-    const ethGroup = app.groups.find((group: any) => group.symbol === 'ETHUSD');
+    const btcGroup = app.groups().find((group: any) => group.symbol === 'BTCUSD');
+    const ethGroup = app.groups().find((group: any) => group.symbol === 'ETHUSD');
 
     const btcBuyOrder = btcGroup.orders.find((order: any) => order.id === 1203384);
     const btcSellOrder = btcGroup.orders.find((order: any) => order.id === 1226230);
@@ -106,12 +106,12 @@ describe('App', () => {
     const app = fixture.componentInstance as any;
 
     app.removeOrder('BTCUSD', 1203384);
-    expect(app.snackbarMessage).toBe('Zamknięto zlecenie nr 1203384');
-    expect(app.isSnackbarVisible).toBe(true);
+    expect(app.snackbarMessage()).toBe('Zamknięto zlecenie nr 1203384');
+    expect(app.isSnackbarVisible()).toBe(true);
 
     app.removeGroup('ETHUSD', new Event('click'));
-    expect(app.snackbarMessage).toBe('Zamknięto zlecenie nr 1226254, 1226256');
-    expect(app.isSnackbarVisible).toBe(true);
+    expect(app.snackbarMessage()).toBe('Zamknięto zlecenie nr 1226254, 1226256');
+    expect(app.isSnackbarVisible()).toBe(true);
   });
 
   it('should toggle dark/light and support system mode', async () => {
@@ -119,16 +119,17 @@ describe('App', () => {
     const app = fixture.componentInstance as any;
 
     app.setThemePreference('light');
-    expect(app.themePreference).toBe('light');
-    expect(app.themeMode).toBe('light');
+    expect(app.themePreference()).toBe('light');
+    expect(app.themeMode()).toBe('light');
 
     app.toggleLightDark();
-    expect(app.themePreference).toBe('dark');
-    expect(app.themeMode).toBe('dark');
+    TestBed.tick();
+    expect(app.themePreference()).toBe('dark');
+    expect(app.themeMode()).toBe('dark');
     expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
 
     app.setThemePreference('system');
-    expect(app.themePreference).toBe('system');
-    expect(['light', 'dark']).toContain(app.themeMode);
+    expect(app.themePreference()).toBe('system');
+    expect(['light', 'dark']).toContain(app.themeMode());
   });
 });
