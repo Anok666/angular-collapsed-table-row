@@ -1,6 +1,17 @@
 import { DatePipe, DecimalPipe } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
-import { ChangeDetectorRef, Component, OnDestroy, OnInit, inject } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  DestroyRef,
+  OnDestroy,
+  OnInit,
+  computed,
+  effect,
+  inject,
+  signal
+} from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import {
   ApiOrder,
   BrowserStorage,
@@ -26,11 +37,12 @@ import { buildGroupsFromOrders, extractOrders } from './orders.utils';
   selector: 'app-root',
   imports: [DatePipe, DecimalPipe],
   templateUrl: './app.html',
-  styleUrl: './app.css'
+  styleUrl: './app.css',
+  changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class App implements OnInit, OnDestroy {
   private readonly http = inject(HttpClient);
-  private readonly cdr = inject(ChangeDetectorRef);
+  private readonly destroyRef = inject(DestroyRef);
 
   private readonly ordersUrl = 'https://geeksoft.pl/assets/order-data.json';
   private readonly quotesSocketUrl = 'wss://webquotes.geeksoft.pl/websocket/quotes';
@@ -48,19 +60,39 @@ export class App implements OnInit, OnDestroy {
   private mediaQueryList: MediaQueryList | null = null;
   private mediaQueryListener: ((event: MediaQueryListEvent) => void) | null = null;
 
-  protected groups: SymbolGroup[] = [];
-  protected isLoading = true;
-  protected errorMessage = '';
+  /** Symbole z rozwiniętymi szczegółami — źródło prawdy zamiast mutacji `group.expanded`. */
+  private readonly expandedSymbolKeys = signal<ReadonlySet<string>>(new Set<string>());
 
-  protected isSnackbarVisible = false;
-  protected snackbarMessage = '';
+  readonly groups = signal<SymbolGroup[]>([]);
+  readonly isLoading = signal(true);
+  readonly errorMessage = signal('');
 
-  protected themePreference: ThemePreference = this.getInitialThemePreference();
-  protected themeMode: ResolvedThemeMode = 'light';
+  readonly isSnackbarVisible = signal(false);
+  readonly snackbarMessage = signal('');
+
+  readonly themePreference = signal<ThemePreference>(this.readStoredThemePreference());
+  private readonly systemPrefersDark = signal(this.readSystemPrefersDark());
+
+  readonly themeMode = computed<ResolvedThemeMode>(() => {
+    const pref = this.themePreference();
+    if (pref === 'system') {
+      return this.systemPrefersDark() ? 'dark' : 'light';
+    }
+    return pref;
+  });
+
+  private readonly syncDocumentTheme = effect(() => {
+    const mode = this.themeMode();
+    if (typeof document === 'undefined') {
+      return;
+    }
+
+    document.documentElement.setAttribute('data-theme', mode);
+    document.documentElement.style.colorScheme = mode;
+  });
 
   ngOnInit(): void {
     this.initSystemThemeListener();
-    this.applyThemePreference(this.themePreference);
     this.loadOrders();
   }
 
@@ -74,12 +106,16 @@ export class App implements OnInit, OnDestroy {
   }
 
   protected toggleGroup(symbol: string): void {
-    const group = this.groups.find((item) => item.symbol === symbol);
-    if (!group) {
-      return;
-    }
-
-    group.expanded = !group.expanded;
+    this.expandedSymbolKeys.update((prev) => {
+      const next = new Set(prev);
+      if (next.has(symbol)) {
+        next.delete(symbol);
+      } else {
+        next.add(symbol);
+      }
+      return next;
+    });
+    this.rebuildGroups();
   }
 
   protected removeGroup(symbol: string, event: Event): void {
@@ -92,6 +128,11 @@ export class App implements OnInit, OnDestroy {
     }
 
     this.ordersData = removeGroupOrders(this.ordersData, symbol);
+    this.expandedSymbolKeys.update((prev) => {
+      const next = new Set(prev);
+      next.delete(symbol);
+      return next;
+    });
     this.afterOrdersDataChange();
     this.showCloseMessage(orderIds);
   }
@@ -111,18 +152,17 @@ export class App implements OnInit, OnDestroy {
   }
 
   protected closeSnackbar(): void {
-    this.isSnackbarVisible = false;
+    this.isSnackbarVisible.set(false);
     this.snackbarTimerId = this.clearTimer(this.snackbarTimerId);
   }
 
   protected toggleLightDark(): void {
-    const nextMode: ResolvedThemeMode = this.themeMode === 'dark' ? 'light' : 'dark';
-    this.setThemePreference(nextMode);
+    const next: ThemePreference = this.themeMode() === 'dark' ? 'light' : 'dark';
+    this.setThemePreference(next);
   }
 
   protected setThemePreference(mode: ThemePreference): void {
-    this.themePreference = mode;
-    this.applyThemePreference(mode);
+    this.themePreference.set(mode);
     this.getBrowserStorage()?.setItem(this.themeStorageKey, mode);
   }
 
@@ -134,41 +174,36 @@ export class App implements OnInit, OnDestroy {
   }
 
   private loadOrders(): void {
-    this.isLoading = true;
-    this.errorMessage = '';
+    this.isLoading.set(true);
+    this.errorMessage.set('');
 
-    this.http.get<unknown>(this.ordersUrl).subscribe({
-      next: (response) => {
-        this.ordersData = extractOrders(response);
-        this.rebuildGroups(false);
-        this.isLoading = false;
+    this.http
+      .get<unknown>(this.ordersUrl)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (response) => {
+          this.ordersData = extractOrders(response);
+          this.rebuildGroups({ resetExpansion: true });
+          this.isLoading.set(false);
 
-        this.connectQuotesSocket();
-        this.syncQuoteSubscriptions();
-        this.requestViewUpdate();
-      },
-      error: () => {
-        this.errorMessage = 'Nie udało się pobrać danych zleceń. Spróbuj ponownie.';
-        this.isLoading = false;
-        this.requestViewUpdate();
-      }
-    });
+          this.connectQuotesSocket();
+          this.syncQuoteSubscriptions();
+        },
+        error: () => {
+          this.errorMessage.set('Nie udało się pobrać danych zleceń. Spróbuj ponownie.');
+          this.isLoading.set(false);
+        }
+      });
   }
 
-  private rebuildGroups(preserveExpansion: boolean): void {
-    const expandedBySymbol = preserveExpansion
-      ? new Map(this.groups.map((group) => [group.symbol, group.expanded] as const))
-      : new Map<string, boolean>();
-
-    this.groups = buildGroupsFromOrders(this.ordersData, this.bidBySymbol);
-
-    if (!preserveExpansion) {
-      return;
+  private rebuildGroups(options: { resetExpansion?: boolean } = {}): void {
+    if (options.resetExpansion) {
+      this.expandedSymbolKeys.set(new Set());
     }
 
-    for (const group of this.groups) {
-      group.expanded = expandedBySymbol.get(group.symbol) ?? false;
-    }
+    this.groups.set(
+      buildGroupsFromOrders(this.ordersData, this.bidBySymbol, this.expandedSymbolKeys())
+    );
   }
 
   private connectQuotesSocket(): void {
@@ -176,10 +211,11 @@ export class App implements OnInit, OnDestroy {
       return;
     }
 
-    if (this.quotesSocket && (
-      this.quotesSocket.readyState === WebSocket.OPEN
-      || this.quotesSocket.readyState === WebSocket.CONNECTING
-    )) {
+    if (
+      this.quotesSocket
+      && (this.quotesSocket.readyState === WebSocket.OPEN
+        || this.quotesSocket.readyState === WebSocket.CONNECTING)
+    ) {
       return;
     }
 
@@ -204,7 +240,7 @@ export class App implements OnInit, OnDestroy {
     };
 
     socket.onerror = () => {
-      // keep silent; reconnect is handled on close
+      console.error('WebSocket quotes connection error');
     };
   }
 
@@ -259,7 +295,10 @@ export class App implements OnInit, OnDestroy {
     }
   }
 
-  private sendSocketEvent(path: '/subscribe/addlist' | '/subscribe/removelist', symbols: string[]): void {
+  private sendSocketEvent(
+    path: '/subscribe/addlist' | '/subscribe/removelist',
+    symbols: string[]
+  ): void {
     if (!this.quotesSocket || this.quotesSocket.readyState !== WebSocket.OPEN || symbols.length === 0) {
       return;
     }
@@ -281,8 +320,7 @@ export class App implements OnInit, OnDestroy {
       return;
     }
 
-    this.rebuildGroups(true);
-    this.requestViewUpdate();
+    this.rebuildGroups();
   }
 
   private showCloseMessage(orderIds: number[]): void {
@@ -290,19 +328,18 @@ export class App implements OnInit, OnDestroy {
   }
 
   private showSnackbar(message: string): void {
-    this.snackbarMessage = message;
-    this.isSnackbarVisible = true;
+    this.snackbarMessage.set(message);
+    this.isSnackbarVisible.set(true);
 
     this.snackbarTimerId = this.clearTimer(this.snackbarTimerId);
 
     this.snackbarTimerId = setTimeout(() => {
-      this.isSnackbarVisible = false;
+      this.isSnackbarVisible.set(false);
       this.snackbarTimerId = null;
-      this.requestViewUpdate();
     }, 3500);
   }
 
-  private getInitialThemePreference(): ThemePreference {
+  private readStoredThemePreference(): ThemePreference {
     if (typeof window === 'undefined') {
       return 'system';
     }
@@ -315,28 +352,12 @@ export class App implements OnInit, OnDestroy {
     return 'system';
   }
 
-  private getSystemThemeMode(): ResolvedThemeMode {
-    if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
-      return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  private readSystemPrefersDark(): boolean {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+      return false;
     }
 
-    return 'light';
-  }
-
-  private applyThemePreference(mode: ThemePreference): void {
-    const resolvedMode = mode === 'system' ? this.getSystemThemeMode() : mode;
-    this.applyTheme(resolvedMode);
-  }
-
-  private applyTheme(mode: ResolvedThemeMode): void {
-    this.themeMode = mode;
-
-    if (typeof document === 'undefined') {
-      return;
-    }
-
-    document.documentElement.setAttribute('data-theme', mode);
-    document.documentElement.style.colorScheme = mode;
+    return window.matchMedia('(prefers-color-scheme: dark)').matches;
   }
 
   private initSystemThemeListener(): void {
@@ -346,9 +367,7 @@ export class App implements OnInit, OnDestroy {
 
     this.mediaQueryList = window.matchMedia('(prefers-color-scheme: dark)');
     this.mediaQueryListener = () => {
-      if (this.themePreference === 'system') {
-        this.applyTheme(this.getSystemThemeMode());
-      }
+      this.systemPrefersDark.set(window.matchMedia('(prefers-color-scheme: dark)').matches);
     };
 
     if (typeof this.mediaQueryList.addEventListener === 'function') {
@@ -385,7 +404,9 @@ export class App implements OnInit, OnDestroy {
 
     let storage: Partial<BrowserStorage> | undefined;
     try {
-      storage = (window as Window & { localStorage?: unknown }).localStorage as Partial<BrowserStorage> | undefined;
+      storage = (window as Window & { localStorage?: unknown }).localStorage as
+        | Partial<BrowserStorage>
+        | undefined;
     } catch {
       return null;
     }
@@ -397,21 +418,8 @@ export class App implements OnInit, OnDestroy {
     return storage as BrowserStorage;
   }
 
-  private requestViewUpdate(): void {
-    if (this.isDestroyed) {
-      return;
-    }
-
-    // In zoneless mode async callbacks may not refresh UI automatically.
-    queueMicrotask(() => {
-      if (!this.isDestroyed) {
-        this.cdr.detectChanges();
-      }
-    });
-  }
-
   private afterOrdersDataChange(): void {
-    this.rebuildGroups(true);
+    this.rebuildGroups();
     this.syncQuoteSubscriptions();
   }
 

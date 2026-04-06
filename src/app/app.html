@@ -1,4 +1,4 @@
-<main class="orders-page" [class.dark-mode]="themeMode === 'dark'">
+<main class="orders-page" [class.dark-mode]="themeMode() === 'dark'">
   <header class="page-header">
     <div>
       <h1>Zlecenia</h1>
@@ -9,9 +9,9 @@
         type="button"
         class="theme-btn"
         (click)="toggleLightDark()"
-        [attr.aria-label]="themeMode === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'"
+        [attr.aria-label]="themeMode() === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'"
       >
-        @if (themeMode === 'light') {
+        @if (themeMode() === 'light') {
           <span class="theme-icon sun-icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" focusable="false">
               <circle cx="12" cy="12" r="4"></circle>
@@ -19,20 +19,20 @@
             </svg>
           </span>
         }
-        @if (themeMode === 'dark') {
+        @if (themeMode() === 'dark') {
           <span class="theme-icon moon-icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" focusable="false">
               <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
             </svg>
           </span>
         }
-        {{ themeMode === 'dark' ? 'Light' : 'Dark' }}
+        {{ themeMode() === 'dark' ? 'Light' : 'Dark' }}
       </button>
       <label class="theme-select-label" for="theme-preference">Mode</label>
       <select
         id="theme-preference"
         class="theme-select"
-        [value]="themePreference"
+        [value]="themePreference()"
         (change)="onThemePreferenceChange($event)"
         aria-label="Theme mode"
       >
@@ -43,18 +43,18 @@
     </div>
   </header>
 
-  @if (isLoading) {
+  @if (isLoading()) {
     <p class="state-message">Pobieranie danych...</p>
   }
 
-  @if (!isLoading && errorMessage) {
+  @if (!isLoading() && errorMessage()) {
     <div class="state-message error">
-      <p>{{ errorMessage }}</p>
+      <p>{{ errorMessage() }}</p>
       <button type="button" class="action-btn" (click)="retryLoad()">Ponów</button>
     </div>
   }
 
-  @if (!isLoading && !errorMessage && groups.length > 0) {
+  @if (!isLoading() && !errorMessage() && groups().length > 0) {
     <section class="table-wrapper" aria-label="Tabela zleceń">
       <table>
         <thead>
@@ -68,7 +68,7 @@
           </tr>
         </thead>
         <tbody>
-          @for (group of groups; track group.symbol) {
+          @for (group of groups(); track group.symbol) {
             <tr class="group-row" (click)="toggleGroup(group.symbol)">
               <td>
                 <span class="group-toggle">{{ group.expanded ? '▼' : '▶' }}</span>
@@ -151,13 +151,13 @@
     </section>
   }
 
-  @if (!isLoading && !errorMessage && groups.length === 0) {
+  @if (!isLoading() && !errorMessage() && groups().length === 0) {
     <p class="state-message">Brak danych do wyświetlenia w tabeli.</p>
   }
 
-  @if (isSnackbarVisible) {
+  @if (isSnackbarVisible()) {
     <div class="snackbar" role="status" aria-live="polite">
-      <span>{{ snackbarMessage }}</span>
+      <span>{{ snackbarMessage() }}</span>
       <button type="button" class="snackbar-close" (click)="closeSnackbar()" aria-label="Zamknij komunikat">✕</button>
     </div>
   }
