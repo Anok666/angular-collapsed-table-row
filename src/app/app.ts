@@ -1,4 +1,4 @@
-import { DatePipe, DecimalPipe, NgForOf, NgIf } from '@angular/common';
+import { DatePipe, DecimalPipe } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
 import { ChangeDetectorRef, Component, OnDestroy, OnInit, inject } from '@angular/core';
 import {
@@ -24,7 +24,7 @@ import { buildGroupsFromOrders, extractOrders } from './orders.utils';
 
 @Component({
   selector: 'app-root',
-  imports: [DatePipe, DecimalPipe, NgIf, NgForOf],
+  imports: [DatePipe, DecimalPipe],
   templateUrl: './app.html',
   styleUrl: './app.css'
 })
@@ -131,14 +131,6 @@ export class App implements OnInit, OnDestroy {
     if (isThemePreference(mode)) {
       this.setThemePreference(mode);
     }
-  }
-
-  protected trackBySymbol(_index: number, group: SymbolGroup): string {
-    return group.symbol;
-  }
-
-  protected trackByOrderId(_index: number, order: { id: number }): number {
-    return order.id;
   }
 
   private loadOrders(): void {
