@@ -12,6 +12,8 @@ import {
   signal
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { Subscription } from 'rxjs';
+import { WebSocketSubject, webSocket } from 'rxjs/webSocket';
 import {
   ApiOrder,
   BrowserStorage,
@@ -51,7 +53,8 @@ export class App implements OnInit, OnDestroy {
   private ordersData: ApiOrder[] = [];
   private readonly bidBySymbol = new Map<string, number>();
 
-  private quotesSocket: WebSocket | null = null;
+  private quotesSocket: WebSocketSubject<unknown> | null = null;
+  private quotesSubscription: Subscription | null = null;
   private readonly subscribedSymbols = new Set<string>();
   private reconnectTimerId: ReturnType<typeof setTimeout> | null = null;
   private snackbarTimerId: ReturnType<typeof setTimeout> | null = null;
@@ -103,6 +106,8 @@ export class App implements OnInit, OnDestroy {
 
     this.reconnectTimerId = this.clearTimer(this.reconnectTimerId);
     this.snackbarTimerId = this.clearTimer(this.snackbarTimerId);
+    this.quotesSubscription?.unsubscribe();
+    this.quotesSubscription = null;
   }
 
   protected toggleGroup(symbol: string): void {
@@ -211,41 +216,42 @@ export class App implements OnInit, OnDestroy {
       return;
     }
 
-    if (
-      this.quotesSocket
-      && (this.quotesSocket.readyState === WebSocket.OPEN
-        || this.quotesSocket.readyState === WebSocket.CONNECTING)
-    ) {
+    if (this.quotesSocket && !this.quotesSocket.closed) {
       return;
     }
 
-    const socket = new WebSocket(this.quotesSocketUrl);
-    this.quotesSocket = socket;
-
-    socket.onopen = () => {
-      this.syncQuoteSubscriptions();
-    };
-
-    socket.onmessage = (event: MessageEvent<string>) => {
-      this.handleQuoteMessage(event.data);
-    };
-
-    socket.onclose = () => {
-      if (this.quotesSocket === socket) {
-        this.quotesSocket = null;
+    const socket$ = webSocket<unknown>({
+      url: this.quotesSocketUrl,
+      openObserver: {
+        next: () => this.syncQuoteSubscriptions()
+      },
+      closeObserver: {
+        next: () => {
+          if (this.quotesSocket === socket$) {
+            this.quotesSocket = null;
+          }
+          this.subscribedSymbols.clear();
+          this.scheduleReconnect();
+        }
       }
+    });
 
-      this.subscribedSymbols.clear();
-      this.scheduleReconnect();
-    };
-
-    socket.onerror = () => {
-      console.error('WebSocket quotes connection error');
-    };
+    this.quotesSocket = socket$;
+    this.quotesSubscription?.unsubscribe();
+    this.quotesSubscription = socket$
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (message) => this.handleQuoteMessage(message),
+        error: (error) => {
+          if (error && typeof error === 'object' && Object.keys(error as object).length > 0) {
+            console.error('WebSocket quotes connection error', error);
+          }
+        }
+      });
   }
 
   private closeQuotesSocket(): void {
-    if (this.quotesSocket && this.quotesSocket.readyState === WebSocket.OPEN) {
+    if (this.quotesSocket && !this.quotesSocket.closed) {
       this.sendSocketEvent('/subscribe/removelist', Array.from(this.subscribedSymbols));
     }
 
@@ -255,7 +261,7 @@ export class App implements OnInit, OnDestroy {
       return;
     }
 
-    this.quotesSocket.close();
+    this.quotesSocket.complete();
     this.quotesSocket = null;
   }
 
@@ -273,7 +279,7 @@ export class App implements OnInit, OnDestroy {
   private syncQuoteSubscriptions(): void {
     const desiredSymbols = getOrderSymbols(this.ordersData);
 
-    if (!this.quotesSocket || this.quotesSocket.readyState !== WebSocket.OPEN) {
+    if (!this.quotesSocket || this.quotesSocket.closed) {
       return;
     }
 
@@ -299,18 +305,18 @@ export class App implements OnInit, OnDestroy {
     path: '/subscribe/addlist' | '/subscribe/removelist',
     symbols: string[]
   ): void {
-    if (!this.quotesSocket || this.quotesSocket.readyState !== WebSocket.OPEN || symbols.length === 0) {
+    if (!this.quotesSocket || this.quotesSocket.closed || symbols.length === 0) {
       return;
     }
 
-    this.quotesSocket.send(JSON.stringify({
+    this.quotesSocket.next({
       p: path,
       d: symbols
-    }));
+    });
   }
 
-  private handleQuoteMessage(rawData: string): void {
-    const updates = parseQuoteBidUpdates(rawData);
+  private handleQuoteMessage(message: unknown): void {
+    const updates = parseQuoteBidUpdates(JSON.stringify(message));
     if (updates.length === 0) {
       return;
     }
