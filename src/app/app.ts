@@ -1,4 +1,3 @@
-import { DatePipe, DecimalPipe } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
 import {
   ChangeDetectionStrategy,
@@ -6,31 +5,18 @@ import {
   DestroyRef,
   OnDestroy,
   OnInit,
-  computed,
-  effect,
   inject,
   signal
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { Subscription } from 'rxjs';
-import { WebSocketSubject, webSocket } from 'rxjs/webSocket';
-import {
-  ApiOrder,
-  BrowserStorage,
-  ResolvedThemeMode,
-  SymbolGroup,
-  ThemePreference
-} from './orders.types';
+import { ApiOrder, SymbolGroup, ThemePreference } from './orders.types';
 import {
   applyBidUpdates,
   buildCloseMessage,
-  diffSymbolSubscriptions,
   getOrderIdsBySymbol,
   getOrderSymbols,
   hasOrderById,
   isThemePreference,
-  ParseQuoteIssue,
-  parseQuoteBidUpdates,
   removeGroupOrders,
   removeSingleOrder
 } from './app.helpers';
@@ -41,10 +27,14 @@ import {
   DiagnosticsLevel
 } from './diagnostics';
 import { buildGroupsFromOrders, extractOrders, InvalidOrderInfo } from './orders.utils';
+import { OrdersTableComponent } from './orders-table.component';
+import { QuotesService, QuotesServiceDiagnostic } from './quotes.service';
+import { ThemeService } from './theme.service';
+import { ThemeControlsComponent } from './theme-controls.component';
 
 @Component({
   selector: 'app-root',
-  imports: [DatePipe, DecimalPipe],
+  imports: [ThemeControlsComponent, OrdersTableComponent],
   templateUrl: './app.html',
   styleUrl: './app.css',
   changeDetection: ChangeDetectionStrategy.OnPush
@@ -52,23 +42,15 @@ import { buildGroupsFromOrders, extractOrders, InvalidOrderInfo } from './orders
 export class App implements OnInit, OnDestroy {
   private readonly http = inject(HttpClient);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly quotesService = inject(QuotesService);
+  private readonly themeService = inject(ThemeService);
 
   private readonly ordersUrl = 'https://geeksoft.pl/assets/order-data.json';
   private readonly quotesSocketUrl = 'wss://webquotes.geeksoft.pl/websocket/quotes';
-  private readonly themeStorageKey = 'orders-theme-preference';
 
   private ordersData: ApiOrder[] = [];
   private readonly bidBySymbol = new Map<string, number>();
-
-  private quotesSocket: WebSocketSubject<unknown> | null = null;
-  private quotesSubscription: Subscription | null = null;
-  private readonly subscribedSymbols = new Set<string>();
-  private reconnectTimerId: ReturnType<typeof setTimeout> | null = null;
   private snackbarTimerId: ReturnType<typeof setTimeout> | null = null;
-
-  private isDestroyed = false;
-  private mediaQueryList: MediaQueryList | null = null;
-  private mediaQueryListener: ((event: MediaQueryListEvent) => void) | null = null;
 
   /** Symbole z rozwiniętymi szczegółami — źródło prawdy zamiast mutacji `group.expanded`. */
   private readonly expandedSymbolKeys = signal<ReadonlySet<string>>(new Set<string>());
@@ -81,41 +63,23 @@ export class App implements OnInit, OnDestroy {
   readonly isSnackbarVisible = signal(false);
   readonly snackbarMessage = signal('');
 
-  readonly themePreference = signal<ThemePreference>(this.readStoredThemePreference());
-  private readonly systemPrefersDark = signal(this.readSystemPrefersDark());
-
-  readonly themeMode = computed<ResolvedThemeMode>(() => {
-    const pref = this.themePreference();
-    if (pref === 'system') {
-      return this.systemPrefersDark() ? 'dark' : 'light';
-    }
-    return pref;
-  });
-
-  private readonly syncDocumentTheme = effect(() => {
-    const mode = this.themeMode();
-    if (typeof document === 'undefined') {
-      return;
-    }
-
-    document.documentElement.setAttribute('data-theme', mode);
-    document.documentElement.style.colorScheme = mode;
-  });
+  readonly themePreference = this.themeService.themePreference;
+  readonly themeMode = this.themeService.themeMode;
 
   ngOnInit(): void {
-    this.initSystemThemeListener();
+    this.themeService.init();
+    this.quotesService.connect({
+      socketUrl: this.quotesSocketUrl,
+      onBidUpdates: (updates) => this.handleQuoteUpdates(updates),
+      onDiagnostic: (diagnostic) => this.handleQuotesDiagnostic(diagnostic)
+    });
     this.loadOrders();
   }
 
   ngOnDestroy(): void {
-    this.isDestroyed = true;
-    this.detachSystemThemeListener();
-    this.closeQuotesSocket();
-
-    this.reconnectTimerId = this.clearTimer(this.reconnectTimerId);
+    this.themeService.destroy();
+    this.quotesService.destroy();
     this.snackbarTimerId = this.clearTimer(this.snackbarTimerId);
-    this.quotesSubscription?.unsubscribe();
-    this.quotesSubscription = null;
   }
 
   protected toggleGroup(symbol: string): void {
@@ -170,13 +134,11 @@ export class App implements OnInit, OnDestroy {
   }
 
   protected toggleLightDark(): void {
-    const next: ThemePreference = this.themeMode() === 'dark' ? 'light' : 'dark';
-    this.setThemePreference(next);
+    this.themeService.toggleLightDark();
   }
 
   protected setThemePreference(mode: ThemePreference): void {
-    this.themePreference.set(mode);
-    this.getBrowserStorage()?.setItem(this.themeStorageKey, mode);
+    this.themeService.setThemePreference(mode);
   }
 
   protected onThemePreferenceChange(event: Event): void {
@@ -199,10 +161,7 @@ export class App implements OnInit, OnDestroy {
           let invalidOrdersCount = 0;
           this.ordersData = extractOrders(response, (invalidOrder) => {
             invalidOrdersCount += 1;
-            this.reportDiagnosticsByCode(
-              'DATA_VALIDATION_WARNING',
-              invalidOrder
-            );
+            this.reportDiagnosticsByCode('DATA_VALIDATION_WARNING', invalidOrder);
           });
           this.rebuildGroups({ resetExpansion: true });
           this.isLoading.set(false);
@@ -215,19 +174,13 @@ export class App implements OnInit, OnDestroy {
           }
 
           if (this.ordersData.length === 0 && !this.errorMessage()) {
-            this.reportDiagnosticsByCode(
-              'DATA_EMPTY_AFTER_VALIDATION',
-            );
+            this.reportDiagnosticsByCode('DATA_EMPTY_AFTER_VALIDATION');
           }
 
-          this.connectQuotesSocket();
           this.syncQuoteSubscriptions();
         },
         error: (error) => {
-          this.reportDiagnosticsByCode(
-            'HTTP_FETCH_FAILED',
-            error
-          );
+          this.reportDiagnosticsByCode('HTTP_FETCH_FAILED', error);
           this.errorMessage.set('Nie udało się pobrać danych zleceń. Spróbuj ponownie.');
           this.isLoading.set(false);
         }
@@ -244,129 +197,32 @@ export class App implements OnInit, OnDestroy {
     );
   }
 
-  private connectQuotesSocket(): void {
-    if (typeof WebSocket === 'undefined') {
-      return;
-    }
-
-    if (this.quotesSocket && !this.quotesSocket.closed) {
-      return;
-    }
-
-    const socket$ = webSocket<unknown>({
-      url: this.quotesSocketUrl,
-      openObserver: {
-        next: () => this.syncQuoteSubscriptions()
-      },
-      closeObserver: {
-        next: () => {
-          if (this.quotesSocket === socket$) {
-            this.quotesSocket = null;
-          }
-          this.subscribedSymbols.clear();
-          this.scheduleReconnect();
-        }
-      }
-    });
-
-    this.quotesSocket = socket$;
-    this.quotesSubscription?.unsubscribe();
-    this.quotesSubscription = socket$
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (message) => this.handleQuoteMessage(message),
-        error: (error) => {
-          if (!this.hasUsefulErrorContext(error)) {
-            return;
-          }
-
-          this.reportDiagnosticsByCode(
-            'WS_CONNECTION_ERROR',
-            error
-          );
-        }
-      });
-  }
-
-  private closeQuotesSocket(): void {
-    if (this.quotesSocket && !this.quotesSocket.closed) {
-      this.sendSocketEvent('/subscribe/removelist', Array.from(this.subscribedSymbols));
-    }
-
-    this.subscribedSymbols.clear();
-
-    if (!this.quotesSocket) {
-      return;
-    }
-
-    this.quotesSocket.complete();
-    this.quotesSocket = null;
-  }
-
-  private scheduleReconnect(): void {
-    if (this.isDestroyed || this.ordersData.length === 0 || this.reconnectTimerId !== null) {
-      return;
-    }
-
-    this.reconnectTimerId = setTimeout(() => {
-      this.reconnectTimerId = null;
-      this.connectQuotesSocket();
-    }, 2000);
-  }
-
   private syncQuoteSubscriptions(): void {
     const desiredSymbols = getOrderSymbols(this.ordersData);
-
-    if (!this.quotesSocket || this.quotesSocket.closed) {
-      return;
+    for (const symbol of this.bidBySymbol.keys()) {
+      if (!desiredSymbols.has(symbol)) {
+        this.bidBySymbol.delete(symbol);
+      }
     }
-
-    const { symbolsToAdd, symbolsToRemove } = diffSymbolSubscriptions(
-      desiredSymbols,
-      this.subscribedSymbols
-    );
-
-    this.sendSocketEvent('/subscribe/addlist', symbolsToAdd);
-    this.sendSocketEvent('/subscribe/removelist', symbolsToRemove);
-
-    for (const symbol of symbolsToAdd) {
-      this.subscribedSymbols.add(symbol);
-    }
-
-    for (const symbol of symbolsToRemove) {
-      this.subscribedSymbols.delete(symbol);
-      this.bidBySymbol.delete(symbol);
-    }
+    this.quotesService.setDesiredSymbols(desiredSymbols);
   }
 
-  private sendSocketEvent(
-    path: '/subscribe/addlist' | '/subscribe/removelist',
-    symbols: string[]
-  ): void {
-    if (!this.quotesSocket || this.quotesSocket.closed || symbols.length === 0) {
-      return;
-    }
-
-    this.quotesSocket.next({
-      p: path,
-      d: symbols
-    });
-  }
-
-  private handleQuoteMessage(message: unknown): void {
-    const updates = parseQuoteBidUpdates(JSON.stringify(message), (issue) =>
-      this.handleQuoteParseIssue(issue)
-    );
-    if (updates.length === 0) {
-      return;
-    }
-
+  private handleQuoteUpdates(updates: Array<{ symbol: string; bid: number }>): void {
     const didChange = applyBidUpdates(this.bidBySymbol, updates);
     if (!didChange) {
       return;
     }
 
     this.rebuildGroups();
+  }
+
+  private handleQuotesDiagnostic(diagnostic: QuotesServiceDiagnostic): void {
+    if (diagnostic.type === 'connection-error') {
+      this.reportDiagnosticsByCode('WS_CONNECTION_ERROR', diagnostic.error);
+      return;
+    }
+
+    this.reportDiagnosticsByCode('WS_PAYLOAD_INVALID', diagnostic.issue);
   }
 
   private showCloseMessage(orderIds: number[]): void {
@@ -385,106 +241,19 @@ export class App implements OnInit, OnDestroy {
     }, 3500);
   }
 
-  private readStoredThemePreference(): ThemePreference {
-    if (typeof window === 'undefined') {
-      return 'system';
-    }
-
-    const storedTheme = this.getBrowserStorage()?.getItem(this.themeStorageKey);
-    if (isThemePreference(storedTheme)) {
-      return storedTheme;
-    }
-
-    return 'system';
-  }
-
-  private readSystemPrefersDark(): boolean {
-    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
-      return false;
-    }
-
-    return window.matchMedia('(prefers-color-scheme: dark)').matches;
-  }
-
-  private initSystemThemeListener(): void {
-    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
-      return;
-    }
-
-    this.mediaQueryList = window.matchMedia('(prefers-color-scheme: dark)');
-    this.mediaQueryListener = () => {
-      this.systemPrefersDark.set(window.matchMedia('(prefers-color-scheme: dark)').matches);
-    };
-
-    if (typeof this.mediaQueryList.addEventListener === 'function') {
-      this.mediaQueryList.addEventListener('change', this.mediaQueryListener);
-      return;
-    }
-
-    const legacyMediaQueryList = this.mediaQueryList as MediaQueryList & {
-      addListener?: (listener: (event: MediaQueryListEvent) => void) => void;
-    };
-    legacyMediaQueryList.addListener?.(this.mediaQueryListener);
-  }
-
-  private detachSystemThemeListener(): void {
-    if (!this.mediaQueryList || !this.mediaQueryListener) {
-      return;
-    }
-
-    if (typeof this.mediaQueryList.removeEventListener === 'function') {
-      this.mediaQueryList.removeEventListener('change', this.mediaQueryListener);
-      return;
-    }
-
-    const legacyMediaQueryList = this.mediaQueryList as MediaQueryList & {
-      removeListener?: (listener: (event: MediaQueryListEvent) => void) => void;
-    };
-    legacyMediaQueryList.removeListener?.(this.mediaQueryListener);
-  }
-
-  private getBrowserStorage(): BrowserStorage | null {
-    if (typeof window === 'undefined') {
-      return null;
-    }
-
-    let storage: Partial<BrowserStorage> | undefined;
-    try {
-      storage = (window as Window & { localStorage?: unknown }).localStorage as
-        | Partial<BrowserStorage>
-        | undefined;
-    } catch {
-      return null;
-    }
-
-    if (!storage || typeof storage.getItem !== 'function' || typeof storage.setItem !== 'function') {
-      return null;
-    }
-
-    return storage as BrowserStorage;
-  }
-
   private afterOrdersDataChange(): void {
     this.rebuildGroups();
     this.syncQuoteSubscriptions();
   }
 
-  private handleQuoteParseIssue(issue: ParseQuoteIssue): void {
-    this.reportDiagnosticsByCode(
-      'WS_PAYLOAD_INVALID',
-      issue
-    );
-  }
-
   private reportDiagnosticsByCode(
     code: DiagnosticsCode,
-    messageOrContext?: string | ParseQuoteIssue | InvalidOrderInfo | unknown,
-    maybeContext?: ParseQuoteIssue | InvalidOrderInfo | unknown
+    messageOrContext?: string | InvalidOrderInfo | unknown,
+    maybeContext?: InvalidOrderInfo | unknown
   ): void {
     const definition = DIAGNOSTICS_DEFINITIONS[code];
-    const message = typeof messageOrContext === 'string'
-      ? messageOrContext
-      : definition.defaultMessage;
+    const message =
+      typeof messageOrContext === 'string' ? messageOrContext : definition.defaultMessage;
     const context = typeof messageOrContext === 'string' ? maybeContext : messageOrContext;
 
     this.reportDiagnostics(code, definition.level, message, context);
@@ -494,7 +263,7 @@ export class App implements OnInit, OnDestroy {
     code: DiagnosticsCode,
     level: DiagnosticsLevel,
     message: string,
-    context?: ParseQuoteIssue | InvalidOrderInfo | unknown
+    context?: InvalidOrderInfo | unknown
   ): void {
     const entry: DiagnosticsEntry = {
       code,
@@ -516,18 +285,6 @@ export class App implements OnInit, OnDestroy {
 
   private getDiagnosticsTimestamp(): string {
     return new Date().toISOString();
-  }
-
-  private hasUsefulErrorContext(error: unknown): boolean {
-    if (error === null || typeof error === 'undefined') {
-      return false;
-    }
-
-    if (typeof error !== 'object') {
-      return true;
-    }
-
-    return Object.keys(error as object).length > 0;
   }
 
   private clearTimer(timerId: ReturnType<typeof setTimeout> | null): null {

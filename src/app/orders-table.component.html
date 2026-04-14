@@ -1,0 +1,94 @@
+<section class="table-wrapper" aria-label="Tabela zleceń">
+  <table>
+    <thead>
+      <tr>
+        <th scope="col">Symbol</th>
+        <th scope="col">Open Price</th>
+        <th scope="col">Swap</th>
+        <th scope="col">Profit</th>
+        <th scope="col">Size</th>
+        <th scope="col">Usuń</th>
+      </tr>
+    </thead>
+    <tbody>
+      @for (group of groups; track group.symbol) {
+        <tr class="group-row" (click)="toggleGroup.emit(group.symbol)">
+          <td>
+            <span class="group-toggle">{{ group.expanded ? '▼' : '▶' }}</span>
+            {{ group.symbol }} ({{ group.count }})
+          </td>
+          <td>{{ group.openPriceAvg | number: '1.2-5' }}</td>
+          <td>{{ group.swapSum | number: '1.2-5' }}</td>
+          <td
+            [class.profit-positive]="group.profitAvg > 0"
+            [class.profit-negative]="group.profitAvg < 0"
+          >
+            {{ group.profitAvg | number: '1.2-5' }}
+          </td>
+          <td>{{ group.sizeSum | number: '1.2-5' }}</td>
+          <td>
+            <button
+              type="button"
+              class="delete-btn"
+              (click)="removeGroup.emit({ symbol: group.symbol, event: $event })"
+              [attr.aria-label]="'Usuń grupę ' + group.symbol"
+            >
+              ✕
+            </button>
+          </td>
+        </tr>
+
+        @if (group.expanded) {
+          <tr class="expanded-details-row">
+            <td colspan="6">
+              <table class="details-table" [attr.aria-label]="'Szczegóły zleceń dla ' + group.symbol">
+                <thead>
+                  <tr>
+                    <th scope="col">ID</th>
+                    <th scope="col">Symbol</th>
+                    <th scope="col">Side</th>
+                    <th scope="col">Open Time</th>
+                    <th scope="col">Open Price</th>
+                    <th scope="col">Swap</th>
+                    <th scope="col">Profit</th>
+                    <th scope="col">Size</th>
+                    <th scope="col">Usuń</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (order of group.orders; track order.id) {
+                    <tr class="detail-row">
+                      <td>{{ order.id }}</td>
+                      <td>{{ order.symbol }}</td>
+                      <td>{{ order.side }}</td>
+                      <td>{{ order.openTime | date: 'dd.MM.yyyy HH:mm:ss' }}</td>
+                      <td>{{ order.openPrice | number: '1.2-5' }}</td>
+                      <td>{{ order.swap | number: '1.2-5' }}</td>
+                      <td
+                        [class.profit-positive]="order.profit > 0"
+                        [class.profit-negative]="order.profit < 0"
+                      >
+                        {{ order.profit | number: '1.2-5' }}
+                      </td>
+                      <td>{{ order.size | number: '1.2-5' }}</td>
+                      <td>
+                        <button
+                          type="button"
+                          class="delete-btn"
+                          (click)="removeOrder.emit({ symbol: group.symbol, orderId: order.id })"
+                          [attr.aria-label]="'Usuń zlecenie ' + order.id"
+                        >
+                          ✕
+                        </button>
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </td>
+          </tr>
+        }
+      }
+    </tbody>
+  </table>
+</section>
