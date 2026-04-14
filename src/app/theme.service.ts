@@ -48,6 +48,7 @@ export class ThemeService {
   }
 
   private readStoredThemePreference(): ThemePreference {
+    // Guard for non-browser environments (SSR/tests/prerender).
     if (typeof window === 'undefined') {
       return 'system';
     }
@@ -61,6 +62,7 @@ export class ThemeService {
   }
 
   private readSystemPrefersDark(): boolean {
+    // Guard for non-browser environments (SSR/tests/prerender).
     if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
       return false;
     }
@@ -69,6 +71,7 @@ export class ThemeService {
   }
 
   private initSystemThemeListener(): void {
+    // Guard for non-browser environments (SSR/tests/prerender).
     if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
       return;
     }
@@ -106,6 +109,7 @@ export class ThemeService {
   }
 
   private getBrowserStorage(): BrowserStorage | null {
+    // Guard for non-browser environments (SSR/tests/prerender).
     if (typeof window === 'undefined') {
       return null;
     }
