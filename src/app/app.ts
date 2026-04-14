@@ -1,6 +1,19 @@
-import { DatePipe, DecimalPipe, NgForOf, NgIf } from '@angular/common';
+import { DatePipe, DecimalPipe } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
-import { ChangeDetectorRef, Component, OnDestroy, OnInit, inject } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  DestroyRef,
+  OnDestroy,
+  OnInit,
+  computed,
+  effect,
+  inject,
+  signal
+} from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { Subscription } from 'rxjs';
+import { WebSocketSubject, webSocket } from 'rxjs/webSocket';
 import {
   ApiOrder,
   BrowserStorage,
@@ -16,21 +29,29 @@ import {
   getOrderSymbols,
   hasOrderById,
   isThemePreference,
+  ParseQuoteIssue,
   parseQuoteBidUpdates,
   removeGroupOrders,
   removeSingleOrder
 } from './app.helpers';
-import { buildGroupsFromOrders, extractOrders } from './orders.utils';
+import {
+  DIAGNOSTICS_DEFINITIONS,
+  DiagnosticsCode,
+  DiagnosticsEntry,
+  DiagnosticsLevel
+} from './diagnostics';
+import { buildGroupsFromOrders, extractOrders, InvalidOrderInfo } from './orders.utils';
 
 @Component({
   selector: 'app-root',
-  imports: [DatePipe, DecimalPipe, NgIf, NgForOf],
+  imports: [DatePipe, DecimalPipe],
   templateUrl: './app.html',
-  styleUrl: './app.css'
+  styleUrl: './app.css',
+  changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class App implements OnInit, OnDestroy {
   private readonly http = inject(HttpClient);
-  private readonly cdr = inject(ChangeDetectorRef);
+  private readonly destroyRef = inject(DestroyRef);
 
   private readonly ordersUrl = 'https://geeksoft.pl/assets/order-data.json';
   private readonly quotesSocketUrl = 'wss://webquotes.geeksoft.pl/websocket/quotes';
@@ -39,7 +60,8 @@ export class App implements OnInit, OnDestroy {
   private ordersData: ApiOrder[] = [];
   private readonly bidBySymbol = new Map<string, number>();
 
-  private quotesSocket: WebSocket | null = null;
+  private quotesSocket: WebSocketSubject<unknown> | null = null;
+  private quotesSubscription: Subscription | null = null;
   private readonly subscribedSymbols = new Set<string>();
   private reconnectTimerId: ReturnType<typeof setTimeout> | null = null;
   private snackbarTimerId: ReturnType<typeof setTimeout> | null = null;
@@ -48,19 +70,40 @@ export class App implements OnInit, OnDestroy {
   private mediaQueryList: MediaQueryList | null = null;
   private mediaQueryListener: ((event: MediaQueryListEvent) => void) | null = null;
 
-  protected groups: SymbolGroup[] = [];
-  protected isLoading = true;
-  protected errorMessage = '';
+  /** Symbole z rozwiniętymi szczegółami — źródło prawdy zamiast mutacji `group.expanded`. */
+  private readonly expandedSymbolKeys = signal<ReadonlySet<string>>(new Set<string>());
 
-  protected isSnackbarVisible = false;
-  protected snackbarMessage = '';
+  readonly groups = signal<SymbolGroup[]>([]);
+  readonly isLoading = signal(true);
+  readonly errorMessage = signal('');
+  readonly diagnostics = signal<DiagnosticsEntry | null>(null);
 
-  protected themePreference: ThemePreference = this.getInitialThemePreference();
-  protected themeMode: ResolvedThemeMode = 'light';
+  readonly isSnackbarVisible = signal(false);
+  readonly snackbarMessage = signal('');
+
+  readonly themePreference = signal<ThemePreference>(this.readStoredThemePreference());
+  private readonly systemPrefersDark = signal(this.readSystemPrefersDark());
+
+  readonly themeMode = computed<ResolvedThemeMode>(() => {
+    const pref = this.themePreference();
+    if (pref === 'system') {
+      return this.systemPrefersDark() ? 'dark' : 'light';
+    }
+    return pref;
+  });
+
+  private readonly syncDocumentTheme = effect(() => {
+    const mode = this.themeMode();
+    if (typeof document === 'undefined') {
+      return;
+    }
+
+    document.documentElement.setAttribute('data-theme', mode);
+    document.documentElement.style.colorScheme = mode;
+  });
 
   ngOnInit(): void {
     this.initSystemThemeListener();
-    this.applyThemePreference(this.themePreference);
     this.loadOrders();
   }
 
@@ -71,15 +114,21 @@ export class App implements OnInit, OnDestroy {
 
     this.reconnectTimerId = this.clearTimer(this.reconnectTimerId);
     this.snackbarTimerId = this.clearTimer(this.snackbarTimerId);
+    this.quotesSubscription?.unsubscribe();
+    this.quotesSubscription = null;
   }
 
   protected toggleGroup(symbol: string): void {
-    const group = this.groups.find((item) => item.symbol === symbol);
-    if (!group) {
-      return;
-    }
-
-    group.expanded = !group.expanded;
+    this.expandedSymbolKeys.update((prev) => {
+      const next = new Set(prev);
+      if (next.has(symbol)) {
+        next.delete(symbol);
+      } else {
+        next.add(symbol);
+      }
+      return next;
+    });
+    this.rebuildGroups();
   }
 
   protected removeGroup(symbol: string, event: Event): void {
@@ -92,6 +141,11 @@ export class App implements OnInit, OnDestroy {
     }
 
     this.ordersData = removeGroupOrders(this.ordersData, symbol);
+    this.expandedSymbolKeys.update((prev) => {
+      const next = new Set(prev);
+      next.delete(symbol);
+      return next;
+    });
     this.afterOrdersDataChange();
     this.showCloseMessage(orderIds);
   }
@@ -111,18 +165,17 @@ export class App implements OnInit, OnDestroy {
   }
 
   protected closeSnackbar(): void {
-    this.isSnackbarVisible = false;
+    this.isSnackbarVisible.set(false);
     this.snackbarTimerId = this.clearTimer(this.snackbarTimerId);
   }
 
   protected toggleLightDark(): void {
-    const nextMode: ResolvedThemeMode = this.themeMode === 'dark' ? 'light' : 'dark';
-    this.setThemePreference(nextMode);
+    const next: ThemePreference = this.themeMode() === 'dark' ? 'light' : 'dark';
+    this.setThemePreference(next);
   }
 
   protected setThemePreference(mode: ThemePreference): void {
-    this.themePreference = mode;
-    this.applyThemePreference(mode);
+    this.themePreference.set(mode);
     this.getBrowserStorage()?.setItem(this.themeStorageKey, mode);
   }
 
@@ -133,50 +186,62 @@ export class App implements OnInit, OnDestroy {
     }
   }
 
-  protected trackBySymbol(_index: number, group: SymbolGroup): string {
-    return group.symbol;
-  }
-
-  protected trackByOrderId(_index: number, order: { id: number }): number {
-    return order.id;
-  }
-
   private loadOrders(): void {
-    this.isLoading = true;
-    this.errorMessage = '';
+    this.isLoading.set(true);
+    this.errorMessage.set('');
+    this.diagnostics.set(null);
 
-    this.http.get<unknown>(this.ordersUrl).subscribe({
-      next: (response) => {
-        this.ordersData = extractOrders(response);
-        this.rebuildGroups(false);
-        this.isLoading = false;
+    this.http
+      .get<unknown>(this.ordersUrl)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (response) => {
+          let invalidOrdersCount = 0;
+          this.ordersData = extractOrders(response, (invalidOrder) => {
+            invalidOrdersCount += 1;
+            this.reportDiagnosticsByCode(
+              'DATA_VALIDATION_WARNING',
+              invalidOrder
+            );
+          });
+          this.rebuildGroups({ resetExpansion: true });
+          this.isLoading.set(false);
 
-        this.connectQuotesSocket();
-        this.syncQuoteSubscriptions();
-        this.requestViewUpdate();
-      },
-      error: () => {
-        this.errorMessage = 'Nie udało się pobrać danych zleceń. Spróbuj ponownie.';
-        this.isLoading = false;
-        this.requestViewUpdate();
-      }
-    });
+          if (invalidOrdersCount > 0) {
+            this.reportDiagnosticsByCode(
+              'DATA_PARTIAL_VALIDATION',
+              `Pominieto ${invalidOrdersCount} niepoprawnych rekordow z API.`
+            );
+          }
+
+          if (this.ordersData.length === 0 && !this.errorMessage()) {
+            this.reportDiagnosticsByCode(
+              'DATA_EMPTY_AFTER_VALIDATION',
+            );
+          }
+
+          this.connectQuotesSocket();
+          this.syncQuoteSubscriptions();
+        },
+        error: (error) => {
+          this.reportDiagnosticsByCode(
+            'HTTP_FETCH_FAILED',
+            error
+          );
+          this.errorMessage.set('Nie udało się pobrać danych zleceń. Spróbuj ponownie.');
+          this.isLoading.set(false);
+        }
+      });
   }
 
-  private rebuildGroups(preserveExpansion: boolean): void {
-    const expandedBySymbol = preserveExpansion
-      ? new Map(this.groups.map((group) => [group.symbol, group.expanded] as const))
-      : new Map<string, boolean>();
-
-    this.groups = buildGroupsFromOrders(this.ordersData, this.bidBySymbol);
-
-    if (!preserveExpansion) {
-      return;
+  private rebuildGroups(options: { resetExpansion?: boolean } = {}): void {
+    if (options.resetExpansion) {
+      this.expandedSymbolKeys.set(new Set());
     }
 
-    for (const group of this.groups) {
-      group.expanded = expandedBySymbol.get(group.symbol) ?? false;
-    }
+    this.groups.set(
+      buildGroupsFromOrders(this.ordersData, this.bidBySymbol, this.expandedSymbolKeys())
+    );
   }
 
   private connectQuotesSocket(): void {
@@ -184,40 +249,47 @@ export class App implements OnInit, OnDestroy {
       return;
     }
 
-    if (this.quotesSocket && (
-      this.quotesSocket.readyState === WebSocket.OPEN
-      || this.quotesSocket.readyState === WebSocket.CONNECTING
-    )) {
+    if (this.quotesSocket && !this.quotesSocket.closed) {
       return;
     }
 
-    const socket = new WebSocket(this.quotesSocketUrl);
-    this.quotesSocket = socket;
-
-    socket.onopen = () => {
-      this.syncQuoteSubscriptions();
-    };
-
-    socket.onmessage = (event: MessageEvent<string>) => {
-      this.handleQuoteMessage(event.data);
-    };
-
-    socket.onclose = () => {
-      if (this.quotesSocket === socket) {
-        this.quotesSocket = null;
+    const socket$ = webSocket<unknown>({
+      url: this.quotesSocketUrl,
+      openObserver: {
+        next: () => this.syncQuoteSubscriptions()
+      },
+      closeObserver: {
+        next: () => {
+          if (this.quotesSocket === socket$) {
+            this.quotesSocket = null;
+          }
+          this.subscribedSymbols.clear();
+          this.scheduleReconnect();
+        }
       }
+    });
 
-      this.subscribedSymbols.clear();
-      this.scheduleReconnect();
-    };
+    this.quotesSocket = socket$;
+    this.quotesSubscription?.unsubscribe();
+    this.quotesSubscription = socket$
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (message) => this.handleQuoteMessage(message),
+        error: (error) => {
+          if (!this.hasUsefulErrorContext(error)) {
+            return;
+          }
 
-    socket.onerror = () => {
-      // keep silent; reconnect is handled on close
-    };
+          this.reportDiagnosticsByCode(
+            'WS_CONNECTION_ERROR',
+            error
+          );
+        }
+      });
   }
 
   private closeQuotesSocket(): void {
-    if (this.quotesSocket && this.quotesSocket.readyState === WebSocket.OPEN) {
+    if (this.quotesSocket && !this.quotesSocket.closed) {
       this.sendSocketEvent('/subscribe/removelist', Array.from(this.subscribedSymbols));
     }
 
@@ -227,7 +299,7 @@ export class App implements OnInit, OnDestroy {
       return;
     }
 
-    this.quotesSocket.close();
+    this.quotesSocket.complete();
     this.quotesSocket = null;
   }
 
@@ -245,7 +317,7 @@ export class App implements OnInit, OnDestroy {
   private syncQuoteSubscriptions(): void {
     const desiredSymbols = getOrderSymbols(this.ordersData);
 
-    if (!this.quotesSocket || this.quotesSocket.readyState !== WebSocket.OPEN) {
+    if (!this.quotesSocket || this.quotesSocket.closed) {
       return;
     }
 
@@ -267,19 +339,24 @@ export class App implements OnInit, OnDestroy {
     }
   }
 
-  private sendSocketEvent(path: '/subscribe/addlist' | '/subscribe/removelist', symbols: string[]): void {
-    if (!this.quotesSocket || this.quotesSocket.readyState !== WebSocket.OPEN || symbols.length === 0) {
+  private sendSocketEvent(
+    path: '/subscribe/addlist' | '/subscribe/removelist',
+    symbols: string[]
+  ): void {
+    if (!this.quotesSocket || this.quotesSocket.closed || symbols.length === 0) {
       return;
     }
 
-    this.quotesSocket.send(JSON.stringify({
+    this.quotesSocket.next({
       p: path,
       d: symbols
-    }));
+    });
   }
 
-  private handleQuoteMessage(rawData: string): void {
-    const updates = parseQuoteBidUpdates(rawData);
+  private handleQuoteMessage(message: unknown): void {
+    const updates = parseQuoteBidUpdates(JSON.stringify(message), (issue) =>
+      this.handleQuoteParseIssue(issue)
+    );
     if (updates.length === 0) {
       return;
     }
@@ -289,8 +366,7 @@ export class App implements OnInit, OnDestroy {
       return;
     }
 
-    this.rebuildGroups(true);
-    this.requestViewUpdate();
+    this.rebuildGroups();
   }
 
   private showCloseMessage(orderIds: number[]): void {
@@ -298,19 +374,18 @@ export class App implements OnInit, OnDestroy {
   }
 
   private showSnackbar(message: string): void {
-    this.snackbarMessage = message;
-    this.isSnackbarVisible = true;
+    this.snackbarMessage.set(message);
+    this.isSnackbarVisible.set(true);
 
     this.snackbarTimerId = this.clearTimer(this.snackbarTimerId);
 
     this.snackbarTimerId = setTimeout(() => {
-      this.isSnackbarVisible = false;
+      this.isSnackbarVisible.set(false);
       this.snackbarTimerId = null;
-      this.requestViewUpdate();
     }, 3500);
   }
 
-  private getInitialThemePreference(): ThemePreference {
+  private readStoredThemePreference(): ThemePreference {
     if (typeof window === 'undefined') {
       return 'system';
     }
@@ -323,28 +398,12 @@ export class App implements OnInit, OnDestroy {
     return 'system';
   }
 
-  private getSystemThemeMode(): ResolvedThemeMode {
-    if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
-      return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  private readSystemPrefersDark(): boolean {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+      return false;
     }
 
-    return 'light';
-  }
-
-  private applyThemePreference(mode: ThemePreference): void {
-    const resolvedMode = mode === 'system' ? this.getSystemThemeMode() : mode;
-    this.applyTheme(resolvedMode);
-  }
-
-  private applyTheme(mode: ResolvedThemeMode): void {
-    this.themeMode = mode;
-
-    if (typeof document === 'undefined') {
-      return;
-    }
-
-    document.documentElement.setAttribute('data-theme', mode);
-    document.documentElement.style.colorScheme = mode;
+    return window.matchMedia('(prefers-color-scheme: dark)').matches;
   }
 
   private initSystemThemeListener(): void {
@@ -354,9 +413,7 @@ export class App implements OnInit, OnDestroy {
 
     this.mediaQueryList = window.matchMedia('(prefers-color-scheme: dark)');
     this.mediaQueryListener = () => {
-      if (this.themePreference === 'system') {
-        this.applyTheme(this.getSystemThemeMode());
-      }
+      this.systemPrefersDark.set(window.matchMedia('(prefers-color-scheme: dark)').matches);
     };
 
     if (typeof this.mediaQueryList.addEventListener === 'function') {
@@ -393,7 +450,9 @@ export class App implements OnInit, OnDestroy {
 
     let storage: Partial<BrowserStorage> | undefined;
     try {
-      storage = (window as Window & { localStorage?: unknown }).localStorage as Partial<BrowserStorage> | undefined;
+      storage = (window as Window & { localStorage?: unknown }).localStorage as
+        | Partial<BrowserStorage>
+        | undefined;
     } catch {
       return null;
     }
@@ -405,22 +464,70 @@ export class App implements OnInit, OnDestroy {
     return storage as BrowserStorage;
   }
 
-  private requestViewUpdate(): void {
-    if (this.isDestroyed) {
+  private afterOrdersDataChange(): void {
+    this.rebuildGroups();
+    this.syncQuoteSubscriptions();
+  }
+
+  private handleQuoteParseIssue(issue: ParseQuoteIssue): void {
+    this.reportDiagnosticsByCode(
+      'WS_PAYLOAD_INVALID',
+      issue
+    );
+  }
+
+  private reportDiagnosticsByCode(
+    code: DiagnosticsCode,
+    messageOrContext?: string | ParseQuoteIssue | InvalidOrderInfo | unknown,
+    maybeContext?: ParseQuoteIssue | InvalidOrderInfo | unknown
+  ): void {
+    const definition = DIAGNOSTICS_DEFINITIONS[code];
+    const message = typeof messageOrContext === 'string'
+      ? messageOrContext
+      : definition.defaultMessage;
+    const context = typeof messageOrContext === 'string' ? maybeContext : messageOrContext;
+
+    this.reportDiagnostics(code, definition.level, message, context);
+  }
+
+  private reportDiagnostics(
+    code: DiagnosticsCode,
+    level: DiagnosticsLevel,
+    message: string,
+    context?: ParseQuoteIssue | InvalidOrderInfo | unknown
+  ): void {
+    const entry: DiagnosticsEntry = {
+      code,
+      level,
+      message,
+      timestamp: this.getDiagnosticsTimestamp()
+    };
+
+    this.diagnostics.set(entry);
+
+    const logPayload = `[Orders diagnostics][${code}][${entry.timestamp}] ${message}`;
+    if (level === 'critical') {
+      console.error(logPayload, context);
       return;
     }
 
-    // In zoneless mode async callbacks may not refresh UI automatically.
-    queueMicrotask(() => {
-      if (!this.isDestroyed) {
-        this.cdr.detectChanges();
-      }
-    });
+    console.warn(logPayload, context);
   }
 
-  private afterOrdersDataChange(): void {
-    this.rebuildGroups(true);
-    this.syncQuoteSubscriptions();
+  private getDiagnosticsTimestamp(): string {
+    return new Date().toISOString();
+  }
+
+  private hasUsefulErrorContext(error: unknown): boolean {
+    if (error === null || typeof error === 'undefined') {
+      return false;
+    }
+
+    if (typeof error !== 'object') {
+      return true;
+    }
+
+    return Object.keys(error as object).length > 0;
   }
 
   private clearTimer(timerId: ReturnType<typeof setTimeout> | null): null {
