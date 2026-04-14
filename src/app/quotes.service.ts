@@ -1,4 +1,5 @@
 import { Injectable } from '@angular/core';
+import { Subject } from 'rxjs';
 import { Subscription } from 'rxjs';
 import { WebSocketSubject, webSocket } from 'rxjs/webSocket';
 import { ParseQuoteIssue, QuoteBidUpdate, diffSymbolSubscriptions, parseQuoteBidUpdates } from './app.helpers';
@@ -9,6 +10,9 @@ export type QuotesServiceDiagnostic =
 
 @Injectable({ providedIn: 'root' })
 export class QuotesService {
+  readonly bidUpdates$ = new Subject<QuoteBidUpdate[]>();
+  readonly diagnostics$ = new Subject<QuotesServiceDiagnostic>();
+
   private socketUrl = '';
   private quotesSocket: WebSocketSubject<unknown> | null = null;
   private quotesSubscription: Subscription | null = null;
@@ -18,17 +22,8 @@ export class QuotesService {
   private readonly subscribedSymbols = new Set<string>();
   private desiredSymbols = new Set<string>();
 
-  private onBidUpdates: ((updates: QuoteBidUpdate[]) => void) | null = null;
-  private onDiagnostic: ((diagnostic: QuotesServiceDiagnostic) => void) | null = null;
-
-  connect(options: {
-    socketUrl: string;
-    onBidUpdates: (updates: QuoteBidUpdate[]) => void;
-    onDiagnostic: (diagnostic: QuotesServiceDiagnostic) => void;
-  }): void {
-    this.socketUrl = options.socketUrl;
-    this.onBidUpdates = options.onBidUpdates;
-    this.onDiagnostic = options.onDiagnostic;
+  connect(socketUrl: string): void {
+    this.socketUrl = socketUrl;
     this.connectSocket();
   }
 
@@ -43,8 +38,6 @@ export class QuotesService {
     this.closeSocket();
     this.quotesSubscription?.unsubscribe();
     this.quotesSubscription = null;
-    this.onBidUpdates = null;
-    this.onDiagnostic = null;
   }
 
   private connectSocket(): void {
@@ -79,7 +72,7 @@ export class QuotesService {
           return;
         }
 
-        this.onDiagnostic?.({ type: 'connection-error', error });
+        this.diagnostics$.next({ type: 'connection-error', error });
       }
     });
   }
@@ -145,13 +138,13 @@ export class QuotesService {
 
   private handleQuoteMessage(message: unknown): void {
     const updates = parseQuoteBidUpdates(JSON.stringify(message), (issue) =>
-      this.onDiagnostic?.({ type: 'payload-warning', issue })
+      this.diagnostics$.next({ type: 'payload-warning', issue })
     );
     if (updates.length === 0) {
       return;
     }
 
-    this.onBidUpdates?.(updates);
+    this.bidUpdates$.next(updates);
   }
 
   private hasUsefulErrorContext(error: unknown): boolean {

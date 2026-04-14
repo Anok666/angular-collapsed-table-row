@@ -68,11 +68,13 @@ export class App implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     this.themeService.init();
-    this.quotesService.connect({
-      socketUrl: this.quotesSocketUrl,
-      onBidUpdates: (updates) => this.handleQuoteUpdates(updates),
-      onDiagnostic: (diagnostic) => this.handleQuotesDiagnostic(diagnostic)
-    });
+    this.quotesService.bidUpdates$
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((updates) => this.handleQuoteUpdates(updates));
+    this.quotesService.diagnostics$
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((diagnostic) => this.handleQuotesDiagnostic(diagnostic));
+    this.quotesService.connect(this.quotesSocketUrl);
     this.loadOrders();
   }
 
