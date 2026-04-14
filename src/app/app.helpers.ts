@@ -5,6 +5,11 @@ export type QuoteBidUpdate = {
   bid: number;
 };
 
+export type ParseQuoteIssue = {
+  reason: string;
+  payload?: unknown;
+};
+
 export function getOrderIdsBySymbol(orders: ApiOrder[], symbol: string): number[] {
   return orders
     .filter((order) => order.symbol === symbol)
@@ -37,16 +42,27 @@ export function diffSymbolSubscriptions(desiredSymbols: Set<string>, subscribedS
   };
 }
 
-export function parseQuoteBidUpdates(rawData: string): QuoteBidUpdate[] {
+export function parseQuoteBidUpdates(
+  rawData: string,
+  onIssue?: (issue: ParseQuoteIssue) => void
+): QuoteBidUpdate[] {
   let payload: QuoteSocketEvent | null = null;
   try {
     payload = JSON.parse(rawData) as QuoteSocketEvent;
   } catch (error) {
+    onIssue?.({
+      reason: 'Cannot parse websocket quote payload as JSON.',
+      payload: rawData
+    });
     console.error('Cannot parse websocket quote payload', error);
     return [];
   }
 
   if (!payload || payload.p !== '/quotes/subscribed' || !Array.isArray(payload.d)) {
+    onIssue?.({
+      reason: 'Unexpected websocket event shape.',
+      payload
+    });
     return [];
   }
 
@@ -54,7 +70,13 @@ export function parseQuoteBidUpdates(rawData: string): QuoteBidUpdate[] {
   for (const quote of payload.d) {
     if (typeof quote?.s === 'string' && typeof quote?.b === 'number') {
       updates.push({ symbol: quote.s, bid: quote.b });
+      continue;
     }
+
+    onIssue?.({
+      reason: 'Quote item has invalid shape.',
+      payload: quote
+    });
   }
 
   return updates;

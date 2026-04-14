@@ -1,12 +1,20 @@
 import { ApiOrder, Order, SymbolGroup } from './orders.types';
 
+export type InvalidOrderInfo = {
+  reason: string;
+  rawOrder: unknown;
+};
+
 export const MULTIPLIER_EXPONENT_BY_SYMBOL: Record<string, number> = {
   BTCUSD: 2,
   ETHUSD: 3,
   'TTWO.US': 1
 };
 
-export function extractOrders(response: unknown): ApiOrder[] {
+export function extractOrders(
+  response: unknown,
+  onInvalidOrder?: (invalidOrder: InvalidOrderInfo) => void
+): ApiOrder[] {
   const payload = response as { data?: unknown; orders?: unknown } | unknown[];
   const rawOrders = Array.isArray(payload)
     ? payload
@@ -17,7 +25,7 @@ export function extractOrders(response: unknown): ApiOrder[] {
         : [];
 
   return rawOrders
-    .map((rawOrder) => toApiOrder(rawOrder))
+    .map((rawOrder) => toApiOrder(rawOrder, onInvalidOrder))
     .filter((order): order is ApiOrder => order !== null);
 }
 
@@ -97,7 +105,10 @@ function getMultiplier(symbol: string, exponentBySymbol: Record<string, number>)
   return 10 ** exponent;
 }
 
-function toApiOrder(rawOrder: unknown): ApiOrder | null {
+function toApiOrder(
+  rawOrder: unknown,
+  onInvalidOrder?: (invalidOrder: InvalidOrderInfo) => void
+): ApiOrder | null {
   const raw = rawOrder as Record<string, unknown>;
 
   const id = Number(raw['id']);
@@ -117,6 +128,10 @@ function toApiOrder(rawOrder: unknown): ApiOrder | null {
     || !Number.isFinite(swap)
     || !Number.isFinite(size)
   ) {
+    onInvalidOrder?.({
+      reason: 'Invalid order payload shape or numeric fields.',
+      rawOrder
+    });
     return null;
   }
 
