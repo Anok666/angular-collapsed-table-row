@@ -54,6 +54,22 @@
     </div>
   }
 
+  @if (!isLoading() && !errorMessage() && diagnostics()) {
+    <div
+      class="state-message diagnostics"
+      [class.critical]="diagnostics()?.level === 'critical'"
+      role="status"
+      aria-live="polite"
+    >
+      <p class="diagnostics-line">
+        [{{ diagnostics()?.level === 'critical' ? 'CRITICAL' : 'WARNING' }}]
+        {{ diagnostics()?.code }}
+      </p>
+      <p>{{ diagnostics()?.message }}</p>
+      <p class="diagnostics-time">{{ diagnostics()?.timestamp }}</p>
+    </div>
+  }
+
   @if (!isLoading() && !errorMessage() && groups().length > 0) {
     <section class="table-wrapper" aria-label="Tabela zleceń">
       <table>

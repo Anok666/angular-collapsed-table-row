@@ -29,11 +29,18 @@ import {
   getOrderSymbols,
   hasOrderById,
   isThemePreference,
+  ParseQuoteIssue,
   parseQuoteBidUpdates,
   removeGroupOrders,
   removeSingleOrder
 } from './app.helpers';
-import { buildGroupsFromOrders, extractOrders } from './orders.utils';
+import {
+  DIAGNOSTICS_DEFINITIONS,
+  DiagnosticsCode,
+  DiagnosticsEntry,
+  DiagnosticsLevel
+} from './diagnostics';
+import { buildGroupsFromOrders, extractOrders, InvalidOrderInfo } from './orders.utils';
 
 @Component({
   selector: 'app-root',
@@ -69,6 +76,7 @@ export class App implements OnInit, OnDestroy {
   readonly groups = signal<SymbolGroup[]>([]);
   readonly isLoading = signal(true);
   readonly errorMessage = signal('');
+  readonly diagnostics = signal<DiagnosticsEntry | null>(null);
 
   readonly isSnackbarVisible = signal(false);
   readonly snackbarMessage = signal('');
@@ -181,20 +189,45 @@ export class App implements OnInit, OnDestroy {
   private loadOrders(): void {
     this.isLoading.set(true);
     this.errorMessage.set('');
+    this.diagnostics.set(null);
 
     this.http
       .get<unknown>(this.ordersUrl)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (response) => {
-          this.ordersData = extractOrders(response);
+          let invalidOrdersCount = 0;
+          this.ordersData = extractOrders(response, (invalidOrder) => {
+            invalidOrdersCount += 1;
+            this.reportDiagnosticsByCode(
+              'DATA_VALIDATION_WARNING',
+              invalidOrder
+            );
+          });
           this.rebuildGroups({ resetExpansion: true });
           this.isLoading.set(false);
+
+          if (invalidOrdersCount > 0) {
+            this.reportDiagnosticsByCode(
+              'DATA_PARTIAL_VALIDATION',
+              `Pominieto ${invalidOrdersCount} niepoprawnych rekordow z API.`
+            );
+          }
+
+          if (this.ordersData.length === 0 && !this.errorMessage()) {
+            this.reportDiagnosticsByCode(
+              'DATA_EMPTY_AFTER_VALIDATION',
+            );
+          }
 
           this.connectQuotesSocket();
           this.syncQuoteSubscriptions();
         },
-        error: () => {
+        error: (error) => {
+          this.reportDiagnosticsByCode(
+            'HTTP_FETCH_FAILED',
+            error
+          );
           this.errorMessage.set('Nie udało się pobrać danych zleceń. Spróbuj ponownie.');
           this.isLoading.set(false);
         }
@@ -243,9 +276,14 @@ export class App implements OnInit, OnDestroy {
       .subscribe({
         next: (message) => this.handleQuoteMessage(message),
         error: (error) => {
-          if (error && typeof error === 'object' && Object.keys(error as object).length > 0) {
-            console.error('WebSocket quotes connection error', error);
+          if (!this.hasUsefulErrorContext(error)) {
+            return;
           }
+
+          this.reportDiagnosticsByCode(
+            'WS_CONNECTION_ERROR',
+            error
+          );
         }
       });
   }
@@ -316,7 +354,9 @@ export class App implements OnInit, OnDestroy {
   }
 
   private handleQuoteMessage(message: unknown): void {
-    const updates = parseQuoteBidUpdates(JSON.stringify(message));
+    const updates = parseQuoteBidUpdates(JSON.stringify(message), (issue) =>
+      this.handleQuoteParseIssue(issue)
+    );
     if (updates.length === 0) {
       return;
     }
@@ -427,6 +467,67 @@ export class App implements OnInit, OnDestroy {
   private afterOrdersDataChange(): void {
     this.rebuildGroups();
     this.syncQuoteSubscriptions();
+  }
+
+  private handleQuoteParseIssue(issue: ParseQuoteIssue): void {
+    this.reportDiagnosticsByCode(
+      'WS_PAYLOAD_INVALID',
+      issue
+    );
+  }
+
+  private reportDiagnosticsByCode(
+    code: DiagnosticsCode,
+    messageOrContext?: string | ParseQuoteIssue | InvalidOrderInfo | unknown,
+    maybeContext?: ParseQuoteIssue | InvalidOrderInfo | unknown
+  ): void {
+    const definition = DIAGNOSTICS_DEFINITIONS[code];
+    const message = typeof messageOrContext === 'string'
+      ? messageOrContext
+      : definition.defaultMessage;
+    const context = typeof messageOrContext === 'string' ? maybeContext : messageOrContext;
+
+    this.reportDiagnostics(code, definition.level, message, context);
+  }
+
+  private reportDiagnostics(
+    code: DiagnosticsCode,
+    level: DiagnosticsLevel,
+    message: string,
+    context?: ParseQuoteIssue | InvalidOrderInfo | unknown
+  ): void {
+    const entry: DiagnosticsEntry = {
+      code,
+      level,
+      message,
+      timestamp: this.getDiagnosticsTimestamp()
+    };
+
+    this.diagnostics.set(entry);
+
+    const logPayload = `[Orders diagnostics][${code}][${entry.timestamp}] ${message}`;
+    if (level === 'critical') {
+      console.error(logPayload, context);
+      return;
+    }
+
+    console.warn(logPayload, context);
+  }
+
+  private getDiagnosticsTimestamp(): string {
+    return new Date().toISOString();
+  }
+
+  private hasUsefulErrorContext(error: unknown): boolean {
+    if (error === null || typeof error === 'undefined') {
+      return false;
+    }
+
+    if (typeof error !== 'object') {
+      return true;
+    }
+
+    return Object.keys(error as object).length > 0;
   }
 
   private clearTimer(timerId: ReturnType<typeof setTimeout> | null): null {
