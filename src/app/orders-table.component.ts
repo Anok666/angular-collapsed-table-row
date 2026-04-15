@@ -10,6 +10,7 @@ import { TableSummary } from './orders.utils';
   selector: 'app-orders-table',
   imports: [DatePipe, DecimalPipe, MatIconModule, MatButtonModule, MatTooltipModule],
   templateUrl: './orders-table.component.html',
+  styleUrl: './orders-table.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class OrdersTableComponent {

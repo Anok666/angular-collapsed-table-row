@@ -9,6 +9,7 @@ import { ResolvedThemeMode, ThemePreference } from './orders.types';
   selector: 'app-theme-controls',
   imports: [MatButtonModule, MatButtonToggleModule, MatIconModule, MatTooltipModule],
   templateUrl: './theme-controls.component.html',
+  styleUrl: './theme-controls.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class ThemeControlsComponent {

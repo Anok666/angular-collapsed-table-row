@@ -3,7 +3,7 @@
   font-family: Roboto, 'Segoe UI', sans-serif;
 }
 
-/* ─── Color tokens ─────────────────────────────────────── */
+/* ─── Color tokens — kaskadują do komponentów potomnych ── */
 .orders-page {
   --text-color: rgb(14, 15, 26);
   --page-bg: rgb(233, 237, 241);
@@ -46,7 +46,7 @@
   --detail-row-bg-alt: rgba(14, 15, 26, 0.1);
 }
 
-/* ─── Layout ───────────────────────────────────────────── */
+/* ─── Page layout ──────────────────────────────────────── */
 .page-header {
   display: flex;
   align-items: flex-start;
@@ -68,19 +68,22 @@
   opacity: 0.65;
 }
 
-.theme-controls {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
 /* ─── State messages ───────────────────────────────────── */
 .state-message {
   padding: 1rem 1.25rem;
   border-radius: 0.75rem;
   border: 1px solid var(--border-color);
-  background: var(--row-bg);
+  background: var(--surface);
   font-size: 0.95rem;
+  margin-bottom: 1rem;
+}
+
+.state-message p {
+  margin: 0;
+}
+
+.state-message p + p {
+  margin-top: 0.35rem;
 }
 
 .state-message--error {
@@ -97,228 +100,34 @@
 }
 
 .diagnostics-line {
-  margin: 0 0 0.25rem;
   font-weight: 700;
-  font-size: 0.8rem;
+  font-size: 0.78rem;
   letter-spacing: 0.04em;
   text-transform: uppercase;
   opacity: 0.8;
 }
 
 .diagnostics-time {
-  margin: 0.25rem 0 0;
-  font-size: 0.8rem;
-  opacity: 0.6;
+  font-size: 0.78rem;
+  opacity: 0.55;
 }
 
 .action-btn {
+  display: inline-block;
   margin-top: 0.75rem;
   border: 0;
   border-radius: 0.5rem;
   padding: 0.4rem 1rem;
   font-weight: 600;
+  font-size: 0.875rem;
   cursor: pointer;
   background: var(--profit-negative);
   color: #fff;
+  transition: opacity 150ms ease;
 }
 
-/* ─── Table wrapper ────────────────────────────────────── */
-.table-wrapper {
-  overflow-x: auto;
-  border: 1px solid var(--border-color);
-  border-radius: 0.75rem;
-  background: var(--surface);
-  box-shadow: 0 8px 28px var(--shadow-color);
-  transition: background-color 220ms ease, box-shadow 220ms ease, border-color 220ms ease;
-}
-
-table {
-  width: 100%;
-  min-width: 700px;
-  border-collapse: collapse;
-  font-size: 0.875rem;
-}
-
-th,
-td {
-  padding: 0.7rem 1rem;
-  text-align: left;
-  border-bottom: 1px solid var(--border-color);
-  transition: background-color 180ms ease, border-color 180ms ease;
-  white-space: nowrap;
-}
-
-th {
-  background: var(--header-bg);
-  font-size: 0.7rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.07em;
-  color: var(--text-color);
-  opacity: 0.7;
-  position: sticky;
-  top: 0;
-  z-index: 1;
-}
-
-/* ─── Group rows — zebra striping ──────────────────────── */
-.group-row {
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.group-row:nth-child(odd) {
-  background: var(--row-bg);
-}
-
-.group-row:nth-child(even) {
-  background: var(--row-bg-alt);
-}
-
-.group-row:hover {
-  background: var(--row-hover-bg) !important;
-}
-
-/* smooth expand indicator */
-.group-row .group-toggle-icon {
-  transition: transform 200ms ease;
-}
-
-.group-row.expanded .group-toggle-icon {
-  transform: rotate(0deg);
-}
-
-.cell-symbol {
-  display: flex;
-  align-items: center;
-  gap: 0.3rem;
-}
-
-.group-toggle-icon {
-  font-size: 1.15rem;
-  width: 1.15rem;
-  height: 1.15rem;
-  opacity: 0.55;
-  flex-shrink: 0;
-}
-
-.group-count {
-  font-size: 0.78rem;
-  font-weight: 400;
-  opacity: 0.55;
-  margin-left: 0.1rem;
-}
-
-/* ─── Expanded detail section ──────────────────────────── */
-.expanded-details-row > td {
-  padding: 0;
-  border-bottom: 2px solid var(--border-color);
-  background: transparent;
-}
-
-.details-table {
-  width: 100%;
-  min-width: 920px;
-  border-collapse: collapse;
-}
-
-.details-table th {
-  background: var(--header-bg);
-  font-size: 0.68rem;
-  opacity: 0.65;
-  padding: 0.5rem 1rem;
-}
-
-.details-table td {
-  padding: 0.55rem 1rem;
-  border-bottom: 1px solid var(--border-color);
-  font-size: 0.83rem;
-}
-
-/* Detail rows — zebra striping */
-.detail-row:nth-child(odd) {
-  background: var(--detail-row-bg);
-}
-
-.detail-row:nth-child(even) {
-  background: var(--detail-row-bg-alt);
-}
-
-.detail-row:hover {
-  background: var(--row-hover-bg) !important;
-}
-
-.detail-row:last-child td {
-  border-bottom: 0;
-}
-
-/* ─── Side badge ───────────────────────────────────────── */
-.side-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 3rem;
-  padding: 0.15rem 0.45rem;
-  border-radius: 0.3rem;
-  font-size: 0.7rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  background: rgba(249, 76, 76, 0.14);
-  color: rgb(249, 76, 76);
-}
-
-.side-badge--buy {
-  background: rgba(60, 193, 149, 0.14);
-  color: rgb(60, 193, 149);
-}
-
-/* ─── Action column ────────────────────────────────────── */
-.col-action {
-  width: 2.75rem;
-  padding-inline: 0.25rem;
-  text-align: center;
-}
-
-/* ─── Summary row (tfoot) ──────────────────────────────── */
-.summary-row {
-  font-weight: 700;
-  background: var(--footer-bg) !important;
-}
-
-.summary-row td {
-  border-top: 2px solid var(--border-color);
-  border-bottom: 0;
-  font-size: 0.85rem;
-  color: var(--text-color);
-  opacity: 0.88;
-}
-
-.summary-label {
-  display: inline-block;
-  margin-right: 0.25rem;
-  font-size: 0.65rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  opacity: 0.45;
-  vertical-align: middle;
-}
-
-.summary-count {
-  font-size: 0.78rem;
-  font-weight: 400;
-  opacity: 0.55;
-}
-
-/* ─── Profit colors ────────────────────────────────────── */
-.profit-positive {
-  color: var(--profit-positive);
-  font-weight: 700;
-}
-
-.profit-negative {
-  color: var(--profit-negative);
-  font-weight: 700;
+.action-btn:hover {
+  opacity: 0.85;
 }
 
 /* ─── Responsive ───────────────────────────────────────── */
