@@ -1,6 +1,6 @@
 <main class="orders-page" [class.dark-mode]="themeMode() === 'dark'">
   <header class="page-header">
-    <div>
+    <div class="page-header__title">
       <h1>Zlecenia</h1>
       <p>Tabela z grupowaniem po symbolu i możliwością rozwijania szczegółów.</p>
     </div>
@@ -17,7 +17,7 @@
   }
 
   @if (!isLoading() && errorMessage()) {
-    <div class="state-message error">
+    <div class="state-message state-message--error">
       <p>{{ errorMessage() }}</p>
       <button type="button" class="action-btn" (click)="retryLoad()">Ponów</button>
     </div>
@@ -25,8 +25,8 @@
 
   @if (!isLoading() && !errorMessage() && diagnostics()) {
     <div
-      class="state-message diagnostics"
-      [class.critical]="diagnostics()?.level === 'critical'"
+      class="state-message state-message--diagnostics"
+      [class.state-message--critical]="diagnostics()?.level === 'critical'"
       role="status"
       aria-live="polite"
     >
@@ -51,12 +51,5 @@
 
   @if (!isLoading() && !errorMessage() && groups().length === 0) {
     <p class="state-message">Brak danych do wyświetlenia w tabeli.</p>
-  }
-
-  @if (isSnackbarVisible()) {
-    <div class="snackbar" role="status" aria-live="polite">
-      <span>{{ snackbarMessage() }}</span>
-      <button type="button" class="snackbar-close" (click)="closeSnackbar()" aria-label="Zamknij komunikat">✕</button>
-    </div>
   }
 </main>

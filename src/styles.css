@@ -1,1 +1,20 @@
-/* You can add global styles to this file, and also import other style files */
+@import '@angular/material/prebuilt-themes/azure-blue.css';
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  font-family: Roboto, 'Helvetica Neue', sans-serif;
+}
+
+/* Material dark mode — triggered by ThemeService via data-theme attribute */
+html[data-theme='dark'] {
+  color-scheme: dark;
+}
+
+/* Mat Snackbar — align with project color scheme */
+.mat-mdc-snack-bar-container {
+  --mdc-snackbar-container-color: var(--snackbar-bg, #1a1a2e);
+  --mdc-snackbar-supporting-text-color: var(--snackbar-text, #f5f5f5);
+  --mat-snack-bar-button-color: var(--profit-positive, rgb(60, 193, 149));
+}

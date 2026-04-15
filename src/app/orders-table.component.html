@@ -7,15 +7,18 @@
         <th scope="col">Swap</th>
         <th scope="col">Profit</th>
         <th scope="col">Size</th>
-        <th scope="col">Usuń</th>
+        <th scope="col" class="col-action"></th>
       </tr>
     </thead>
     <tbody>
       @for (group of groups; track group.symbol) {
         <tr class="group-row" (click)="toggleGroup.emit(group.symbol)">
-          <td>
-            <span class="group-toggle">{{ group.expanded ? '▼' : '▶' }}</span>
-            {{ group.symbol }} ({{ group.count }})
+          <td class="cell-symbol">
+            <mat-icon class="group-toggle-icon">
+              {{ group.expanded ? 'keyboard_arrow_down' : 'keyboard_arrow_right' }}
+            </mat-icon>
+            <span>{{ group.symbol }}</span>
+            <span class="group-count">({{ group.count }})</span>
           </td>
           <td>{{ group.openPriceAvg | number: '1.2-5' }}</td>
           <td>{{ group.swapSum | number: '1.2-5' }}</td>
@@ -26,14 +29,15 @@
             {{ group.profitAvg | number: '1.2-5' }}
           </td>
           <td>{{ group.sizeSum | number: '1.2-5' }}</td>
-          <td>
+          <td class="col-action">
             <button
-              type="button"
-              class="delete-btn"
+              mat-icon-button
+              color="warn"
               (click)="$event.stopPropagation(); removeGroup.emit(group.symbol)"
-              [attr.aria-label]="'Usuń grupę ' + group.symbol"
+              [matTooltip]="'Usuń grupę ' + group.symbol"
+              aria-label="Usuń grupę"
             >
-              ✕
+              <mat-icon>close</mat-icon>
             </button>
           </td>
         </tr>
@@ -52,7 +56,7 @@
                     <th scope="col">Swap</th>
                     <th scope="col">Profit</th>
                     <th scope="col">Size</th>
-                    <th scope="col">Usuń</th>
+                    <th scope="col" class="col-action"></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -60,7 +64,11 @@
                     <tr class="detail-row">
                       <td>{{ order.id }}</td>
                       <td>{{ order.symbol }}</td>
-                      <td>{{ order.side }}</td>
+                      <td>
+                        <span class="side-badge" [class.side-badge--buy]="order.side === 'BUY'">
+                          {{ order.side }}
+                        </span>
+                      </td>
                       <td>{{ order.openTime | date: 'dd.MM.yyyy HH:mm:ss' }}</td>
                       <td>{{ order.openPrice | number: '1.2-5' }}</td>
                       <td>{{ order.swap | number: '1.2-5' }}</td>
@@ -71,14 +79,15 @@
                         {{ order.profit | number: '1.2-5' }}
                       </td>
                       <td>{{ order.size | number: '1.2-5' }}</td>
-                      <td>
+                      <td class="col-action">
                         <button
-                          type="button"
-                          class="delete-btn"
+                          mat-icon-button
+                          color="warn"
                           (click)="removeOrder.emit({ symbol: group.symbol, orderId: order.id })"
-                          [attr.aria-label]="'Usuń zlecenie ' + order.id"
+                          [matTooltip]="'Usuń zlecenie ' + order.id"
+                          aria-label="Usuń zlecenie"
                         >
-                          ✕
+                          <mat-icon>close</mat-icon>
                         </button>
                       </td>
                     </tr>

@@ -1,6 +1,8 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
+import { MatSnackBar } from '@angular/material/snack-bar';
+import { vi } from 'vitest';
 import { App } from './app';
 import { mockOrdersResponse } from './testing/mock-orders-response';
 import { flushMicrotasks, MockWebSocket } from './testing/mock-websocket';
@@ -102,16 +104,20 @@ describe('App', () => {
   });
 
   it('should show close message for removed order and group', async () => {
+    const snackBar = TestBed.inject(MatSnackBar);
+    const openSpy = vi.spyOn(snackBar, 'open');
     const fixture = await createAndFlushComponent();
     const app = fixture.componentInstance as any;
 
     app.removeOrder('BTCUSD', 1203384);
-    expect(app.snackbarMessage()).toBe('Zamknięto zlecenie nr 1203384');
-    expect(app.isSnackbarVisible()).toBe(true);
+    expect(openSpy).toHaveBeenCalledWith('Zamknięto zlecenie nr 1203384', 'Zamknij', expect.any(Object));
 
     app.removeGroup('ETHUSD');
-    expect(app.snackbarMessage()).toBe('Zamknięto zlecenie nr 1226254, 1226256');
-    expect(app.isSnackbarVisible()).toBe(true);
+    expect(openSpy).toHaveBeenCalledWith(
+      'Zamknięto zlecenie nr 1226254, 1226256',
+      'Zamknij',
+      expect.any(Object)
+    );
   });
 
   it('should toggle dark/light and support system mode', async () => {

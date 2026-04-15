@@ -1,309 +1,316 @@
 :host {
   display: block;
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  font-family: Roboto, 'Segoe UI', sans-serif;
 }
 
+/* ─── Color tokens ─────────────────────────────────────── */
 .orders-page {
   --text-color: rgb(14, 15, 26);
-  --page-bg-main: rgb(233, 237, 241);
+  --page-bg: rgb(233, 237, 241);
   --surface: rgb(233, 237, 241);
-  --border-color: rgb(201, 209, 216);
-  --muted-color: rgb(14, 15, 26);
-  --header-bg: rgb(220, 225, 229);
-  --header-color: rgb(14, 15, 26);
   --row-bg: rgb(220, 225, 229);
+  --row-bg-alt: rgb(228, 232, 236);
   --row-hover-bg: rgb(201, 209, 216);
+  --border-color: rgb(201, 209, 216);
+  --header-bg: rgb(210, 216, 222);
+  --footer-bg: rgb(210, 216, 222);
   --shadow-color: rgba(14, 15, 26, 0.12);
-  --theme-btn-bg: rgb(14, 15, 26);
-  --theme-btn-hover-bg: rgb(201, 209, 216);
-  --snackbar-bg: rgb(14, 15, 26);
-  --snackbar-text: rgb(233, 237, 241);
   --profit-positive: rgb(60, 193, 149);
   --profit-negative: rgb(249, 76, 76);
+  --snackbar-bg: rgb(14, 15, 26);
+  --snackbar-text: rgb(233, 237, 241);
+  --detail-row-bg: rgb(226, 230, 235);
+  --detail-row-bg-alt: rgb(233, 237, 241);
+
   color: var(--text-color);
+  background: var(--page-bg);
   min-height: 100vh;
   padding: 1.5rem;
-  background: var(--page-bg-main);
+  transition: background-color 220ms ease, color 220ms ease;
 }
 
 .orders-page.dark-mode {
   --text-color: rgb(198, 210, 219);
-  --page-bg-main: rgb(42, 56, 71);
+  --page-bg: rgb(42, 56, 71);
   --surface: rgb(42, 56, 71);
-  --border-color: rgba(53, 71, 89, 0.5);
-  --muted-color: rgb(198, 210, 219);
-  --header-bg: rgba(14, 15, 26, 0.25);
-  --header-color: rgb(198, 210, 219);
   --row-bg: rgba(14, 15, 26, 0.25);
+  --row-bg-alt: rgba(14, 15, 26, 0.15);
   --row-hover-bg: rgba(53, 71, 89, 0.5);
+  --border-color: rgba(53, 71, 89, 0.5);
+  --header-bg: rgba(14, 15, 26, 0.4);
+  --footer-bg: rgba(14, 15, 26, 0.4);
   --shadow-color: rgba(14, 15, 26, 0.35);
-  --theme-btn-bg: rgb(198, 210, 219);
-  --theme-btn-hover-bg: rgba(53, 71, 89, 0.5);
   --snackbar-bg: rgb(198, 210, 219);
   --snackbar-text: rgb(14, 15, 26);
-  --profit-positive: rgb(60, 193, 149);
-  --profit-negative: rgb(249, 76, 76);
+  --detail-row-bg: rgba(14, 15, 26, 0.2);
+  --detail-row-bg-alt: rgba(14, 15, 26, 0.1);
 }
 
-.page-header h1 {
-  margin: 0;
-  font-size: 2rem;
-}
-
+/* ─── Layout ───────────────────────────────────────────── */
 .page-header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 1rem;
+  margin-bottom: 1.5rem;
 }
 
-.orders-page,
-.table-wrapper,
-th,
-td,
-.group-row,
-.state-message,
-.theme-btn,
-.theme-select {
-  transition:
-    background-color 220ms ease,
-    color 220ms ease,
-    border-color 220ms ease,
-    box-shadow 220ms ease;
+.page-header__title h1 {
+  margin: 0;
+  font-size: 1.75rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
 }
 
-.page-header p {
-  margin: 0.5rem 0 0;
-  color: var(--muted-color);
+.page-header__title p {
+  margin: 0.25rem 0 0;
+  font-size: 0.9rem;
+  opacity: 0.65;
 }
 
 .theme-controls {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
   gap: 0.5rem;
-  flex-wrap: wrap;
 }
 
-.theme-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.45rem;
-  border: 0;
-  border-radius: 0.6rem;
-  padding: 0.55rem 0.8rem;
-  font-weight: 700;
-  cursor: pointer;
-  color: rgb(233, 237, 241);
-  background: var(--theme-btn-bg);
-}
-
-.orders-page.dark-mode .theme-btn {
-  color: rgb(14, 15, 26);
-}
-
-.theme-btn:hover {
-  background: var(--theme-btn-hover-bg);
-}
-
-.theme-icon {
-  display: inline-flex;
-  width: 1rem;
-  height: 1rem;
-}
-
-.theme-icon svg {
-  width: 1rem;
-  height: 1rem;
-}
-
-.sun-icon svg {
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 2;
-  stroke-linecap: round;
-}
-
-.moon-icon svg {
-  fill: currentColor;
-  stroke: none;
-}
-
-.theme-select-label {
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: var(--muted-color);
-}
-
-.theme-select {
-  border: 1px solid var(--border-color);
-  border-radius: 0.5rem;
-  padding: 0.45rem 0.55rem;
-  font-weight: 600;
-  color: var(--text-color);
-  background: var(--surface);
-}
-
+/* ─── State messages ───────────────────────────────────── */
 .state-message {
-  margin-top: 1rem;
-  padding: 1rem;
+  padding: 1rem 1.25rem;
   border-radius: 0.75rem;
-  background: var(--surface);
   border: 1px solid var(--border-color);
+  background: var(--row-bg);
+  font-size: 0.95rem;
 }
 
-.state-message.error {
+.state-message--error {
   border-color: var(--profit-negative);
   color: var(--profit-negative);
 }
 
-.state-message.diagnostics {
+.state-message--diagnostics {
   border-color: rgb(247, 176, 0);
-  color: inherit;
 }
 
-.state-message.diagnostics.critical {
+.state-message--critical {
   border-color: var(--profit-negative);
 }
 
 .diagnostics-line {
-  margin: 0;
+  margin: 0 0 0.25rem;
   font-weight: 700;
-  letter-spacing: 0.01em;
-}
-
-.diagnostics-time {
-  margin: 0.35rem 0 0;
-  font-size: 0.85rem;
+  font-size: 0.8rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
   opacity: 0.8;
 }
 
+.diagnostics-time {
+  margin: 0.25rem 0 0;
+  font-size: 0.8rem;
+  opacity: 0.6;
+}
+
+.action-btn {
+  margin-top: 0.75rem;
+  border: 0;
+  border-radius: 0.5rem;
+  padding: 0.4rem 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  background: var(--profit-negative);
+  color: #fff;
+}
+
+/* ─── Table wrapper ────────────────────────────────────── */
 .table-wrapper {
-  margin-top: 1rem;
   overflow-x: auto;
   border: 1px solid var(--border-color);
   border-radius: 0.75rem;
   background: var(--surface);
-  box-shadow: 0 10px 24px var(--shadow-color);
+  box-shadow: 0 8px 28px var(--shadow-color);
+  transition: background-color 220ms ease, box-shadow 220ms ease, border-color 220ms ease;
 }
 
 table {
   width: 100%;
-  min-width: 760px;
+  min-width: 700px;
   border-collapse: collapse;
+  font-size: 0.875rem;
 }
 
 th,
 td {
-  padding: 0.75rem 1rem;
+  padding: 0.7rem 1rem;
   text-align: left;
   border-bottom: 1px solid var(--border-color);
+  transition: background-color 180ms ease, border-color 180ms ease;
+  white-space: nowrap;
 }
 
 th {
   background: var(--header-bg);
-  color: var(--header-color);
-  font-size: 0.85rem;
+  font-size: 0.7rem;
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.03em;
+  letter-spacing: 0.07em;
+  color: var(--text-color);
+  opacity: 0.7;
+  position: sticky;
+  top: 0;
+  z-index: 1;
 }
 
-tbody tr:last-child td {
-  border-bottom: 0;
-}
-
+/* ─── Group rows — zebra striping ──────────────────────── */
 .group-row {
   font-weight: 600;
   cursor: pointer;
+}
+
+.group-row:nth-child(odd) {
   background: var(--row-bg);
+}
+
+.group-row:nth-child(even) {
+  background: var(--row-bg-alt);
 }
 
 .group-row:hover {
-  background: var(--row-hover-bg);
+  background: var(--row-hover-bg) !important;
 }
 
-.detail-row {
-  background: var(--row-bg);
+/* smooth expand indicator */
+.group-row .group-toggle-icon {
+  transition: transform 200ms ease;
 }
 
-.detail-row:hover {
-  background: var(--row-hover-bg);
+.group-row.expanded .group-toggle-icon {
+  transform: rotate(0deg);
 }
 
-.expanded-details-row td {
+.cell-symbol {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.group-toggle-icon {
+  font-size: 1.15rem;
+  width: 1.15rem;
+  height: 1.15rem;
+  opacity: 0.55;
+  flex-shrink: 0;
+}
+
+.group-count {
+  font-size: 0.78rem;
+  font-weight: 400;
+  opacity: 0.55;
+  margin-left: 0.1rem;
+}
+
+/* ─── Expanded detail section ──────────────────────────── */
+.expanded-details-row > td {
   padding: 0;
+  border-bottom: 2px solid var(--border-color);
   background: transparent;
-  border-bottom: 0;
 }
 
 .details-table {
   width: 100%;
-  min-width: 980px;
+  min-width: 920px;
   border-collapse: collapse;
 }
 
-.details-table th,
-.details-table td {
-  padding: 0.65rem 1rem;
-  border-bottom: 1px solid var(--border-color);
-}
-
-.details-table thead th {
+.details-table th {
   background: var(--header-bg);
+  font-size: 0.68rem;
+  opacity: 0.65;
+  padding: 0.5rem 1rem;
 }
 
-.group-toggle {
-  display: inline-block;
-  width: 1.25rem;
-  color: var(--text-color);
+.details-table td {
+  padding: 0.55rem 1rem;
+  border-bottom: 1px solid var(--border-color);
+  font-size: 0.83rem;
 }
 
-.delete-btn,
-.action-btn {
-  border: 0;
-  border-radius: 0.5rem;
-  padding: 0.35rem 0.6rem;
-  font-weight: 600;
-  cursor: pointer;
-  color: rgb(233, 237, 241);
-  background: var(--profit-negative);
+/* Detail rows — zebra striping */
+.detail-row:nth-child(odd) {
+  background: var(--detail-row-bg);
 }
 
-.delete-btn:hover,
-.action-btn:hover {
-  background: var(--profit-negative);
+.detail-row:nth-child(even) {
+  background: var(--detail-row-bg-alt);
 }
 
-.snackbar {
-  position: fixed;
-  right: 1rem;
-  bottom: 1rem;
+.detail-row:hover {
+  background: var(--row-hover-bg) !important;
+}
+
+.detail-row:last-child td {
+  border-bottom: 0;
+}
+
+/* ─── Side badge ───────────────────────────────────────── */
+.side-badge {
   display: inline-flex;
   align-items: center;
-  gap: 0.75rem;
-  max-width: min(90vw, 700px);
-  padding: 0.7rem 0.9rem;
-  border-radius: 0.6rem;
-  background: var(--snackbar-bg);
-  color: var(--snackbar-text);
-  box-shadow: 0 10px 24px var(--shadow-color);
-  z-index: 20;
-}
-
-.snackbar-close {
-  border: 0;
-  border-radius: 0.45rem;
-  padding: 0.2rem 0.5rem;
+  justify-content: center;
+  min-width: 3rem;
+  padding: 0.15rem 0.45rem;
+  border-radius: 0.3rem;
+  font-size: 0.7rem;
   font-weight: 700;
-  cursor: pointer;
-  color: inherit;
-  background: transparent;
+  letter-spacing: 0.06em;
+  background: rgba(249, 76, 76, 0.14);
+  color: rgb(249, 76, 76);
 }
 
-.snackbar-close:hover {
-  background: var(--row-hover-bg);
+.side-badge--buy {
+  background: rgba(60, 193, 149, 0.14);
+  color: rgb(60, 193, 149);
 }
 
+/* ─── Action column ────────────────────────────────────── */
+.col-action {
+  width: 2.75rem;
+  padding-inline: 0.25rem;
+  text-align: center;
+}
+
+/* ─── Summary row (tfoot) ──────────────────────────────── */
+.summary-row {
+  font-weight: 700;
+  background: var(--footer-bg) !important;
+}
+
+.summary-row td {
+  border-top: 2px solid var(--border-color);
+  border-bottom: 0;
+  font-size: 0.85rem;
+  color: var(--text-color);
+  opacity: 0.88;
+}
+
+.summary-label {
+  display: inline-block;
+  margin-right: 0.25rem;
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  opacity: 0.45;
+  vertical-align: middle;
+}
+
+.summary-count {
+  font-size: 0.78rem;
+  font-weight: 400;
+  opacity: 0.55;
+}
+
+/* ─── Profit colors ────────────────────────────────────── */
 .profit-positive {
   color: var(--profit-positive);
   font-weight: 700;
@@ -314,32 +321,7 @@ tbody tr:last-child td {
   font-weight: 700;
 }
 
-.summary-row {
-  font-weight: 700;
-  background: var(--header-bg);
-  border-top: 2px solid var(--border-color);
-}
-
-.summary-row td {
-  border-bottom: 0;
-  color: var(--header-color);
-}
-
-.summary-label {
-  display: inline-block;
-  margin-right: 0.3rem;
-  font-size: 0.75rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  opacity: 0.65;
-}
-
-.summary-count {
-  font-size: 0.85rem;
-  opacity: 0.75;
-}
-
+/* ─── Responsive ───────────────────────────────────────── */
 @media (max-width: 768px) {
   .orders-page {
     padding: 1rem;
@@ -348,19 +330,5 @@ tbody tr:last-child td {
   .page-header {
     flex-direction: column;
     align-items: flex-start;
-  }
-
-  .theme-controls {
-    justify-content: flex-start;
-  }
-
-  .page-header h1 {
-    font-size: 1.5rem;
-  }
-
-  .snackbar {
-    left: 1rem;
-    right: 1rem;
-    bottom: 1rem;
   }
 }
