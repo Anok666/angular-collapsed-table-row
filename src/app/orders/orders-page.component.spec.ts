@@ -3,11 +3,11 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { TestBed } from '@angular/core/testing';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { vi } from 'vitest';
-import { App } from './app';
-import { mockOrdersResponse } from './testing/mock-orders-response';
-import { flushMicrotasks, MockWebSocket } from './testing/mock-websocket';
+import { OrdersPageComponent } from './orders-page.component';
+import { mockOrdersResponse } from '../testing/mock-orders-response';
+import { flushMicrotasks, MockWebSocket } from '../testing/mock-websocket';
 
-describe('App', () => {
+describe('OrdersPageComponent', () => {
   let httpMock: HttpTestingController;
   let originalWebSocket: typeof WebSocket | undefined;
 
@@ -24,7 +24,7 @@ describe('App', () => {
     (globalThis as { WebSocket?: typeof WebSocket }).WebSocket = MockWebSocket as unknown as typeof WebSocket;
 
     await TestBed.configureTestingModule({
-      imports: [App],
+      imports: [OrdersPageComponent],
       providers: [provideHttpClient(), provideHttpClientTesting()]
     }).compileComponents();
 
@@ -39,7 +39,7 @@ describe('App', () => {
   });
 
   async function createAndFlushComponent() {
-    const fixture = TestBed.createComponent(App);
+    const fixture = TestBed.createComponent(OrdersPageComponent);
     fixture.detectChanges(false);
 
     const req = httpMock.expectOne('https://geeksoft.pl/assets/order-data.json');

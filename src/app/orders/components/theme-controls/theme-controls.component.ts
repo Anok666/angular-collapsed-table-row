@@ -3,7 +3,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { ResolvedThemeMode, ThemePreference } from './orders.types';
+import { ResolvedThemeMode, ThemePreference } from '../../orders.types';
 
 @Component({
   selector: 'app-theme-controls',

@@ -1,4 +1,4 @@
-import { ApiOrder, Order, SymbolGroup } from './orders.types';
+import { ApiOrder, Order, SymbolGroup } from '../orders.types';
 
 export interface TableSummary {
   totalCount: number;

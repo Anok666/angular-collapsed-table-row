@@ -2,7 +2,7 @@ import { Injectable } from '@angular/core';
 import { Subject } from 'rxjs';
 import { Subscription } from 'rxjs';
 import { WebSocketSubject, webSocket } from 'rxjs/webSocket';
-import { ParseQuoteIssue, QuoteBidUpdate, diffSymbolSubscriptions, parseQuoteBidUpdates } from './app.helpers';
+import { ParseQuoteIssue, QuoteBidUpdate, diffSymbolSubscriptions, parseQuoteBidUpdates } from '../orders/utils/orders.helpers';
 
 export type QuotesServiceDiagnostic =
   | { type: 'connection-error'; error: unknown }

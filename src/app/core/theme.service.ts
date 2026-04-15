@@ -1,6 +1,6 @@
 import { Injectable, computed, effect, signal } from '@angular/core';
-import { BrowserStorage, ResolvedThemeMode, ThemePreference } from './orders.types';
-import { isThemePreference } from './app.helpers';
+import { BrowserStorage, ResolvedThemeMode, ThemePreference } from '../orders/orders.types';
+import { isThemePreference } from '../orders/utils/orders.helpers';
 
 @Injectable({ providedIn: 'root' })
 export class ThemeService {

@@ -1,4 +1,4 @@
-import { ApiOrder, QuoteSocketEvent, ThemePreference } from './orders.types';
+import { ApiOrder, QuoteSocketEvent, ThemePreference } from '../orders.types';
 
 export type QuoteBidUpdate = {
   symbol: string;
