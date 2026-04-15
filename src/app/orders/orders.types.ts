@@ -10,21 +10,6 @@ export interface ApiOrder {
   size: number;
 }
 
-export type QuotesSubscribedEvent = {
-  p: '/quotes/subscribed';
-  d: Array<{
-    s: string;
-    b: number;
-    a: number;
-    t: number;
-  }>;
-};
-
-export type QuoteSocketEvent = QuotesSubscribedEvent | {
-  p: string;
-  d?: unknown;
-};
-
 export interface Order extends ApiOrder {
   profit: number;
 }
@@ -40,10 +25,13 @@ export interface SymbolGroup {
   expanded: boolean;
 }
 
+export interface TableSummary {
+  totalCount: number;
+  openPriceAvg: number;
+  swapSum: number;
+  profitAvg: number;
+  sizeSum: number;
+}
+
 export type ThemePreference = 'light' | 'dark' | 'system';
 export type ResolvedThemeMode = 'light' | 'dark';
-
-export type BrowserStorage = {
-  getItem: (key: string) => string | null;
-  setItem: (key: string, value: string) => void;
-};
