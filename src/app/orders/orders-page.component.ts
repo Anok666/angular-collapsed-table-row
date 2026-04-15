@@ -1,6 +1,7 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject } from '@angular/core';
-import { OrdersService } from './orders.service';
+import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { QuotesService } from '../core/quotes.service';
 import { ThemeService } from '../core/theme.service';
+import { OrdersService } from './orders.service';
 import { OrdersTableComponent } from './components/orders-table/orders-table.component';
 import { ThemeControlsComponent } from './components/theme-controls/theme-controls.component';
 
@@ -9,7 +10,7 @@ import { ThemeControlsComponent } from './components/theme-controls/theme-contro
   imports: [ThemeControlsComponent, OrdersTableComponent],
   templateUrl: './orders-page.component.html',
   styleUrl: './orders-page.component.css',
-  providers: [OrdersService],
+  providers: [QuotesService, OrdersService],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class OrdersPageComponent {
@@ -17,22 +18,27 @@ export class OrdersPageComponent {
   protected readonly themeService = inject(ThemeService);
 
   protected readonly isDarkMode = computed(() => this.themeService.themeMode() === 'dark');
+
+  private readonly isReady = computed(
+    () => !this.ordersService.isLoading() && !this.ordersService.errorMessage()
+  );
   protected readonly showTable = computed(
-    () => !this.ordersService.isLoading() && !this.ordersService.errorMessage() && this.ordersService.groups().length > 0
+    () => this.isReady() && this.ordersService.groups().length > 0
   );
   protected readonly showEmpty = computed(
-    () => !this.ordersService.isLoading() && !this.ordersService.errorMessage() && this.ordersService.groups().length === 0
+    () => this.isReady() && this.ordersService.groups().length === 0
   );
   protected readonly showDiagnostics = computed(
-    () => !this.ordersService.isLoading() && !this.ordersService.errorMessage() && !!this.ordersService.diagnostics()
+    () => this.isReady() && !!this.ordersService.diagnostics()
   );
   protected readonly diagnosticsLabel = computed(
     () => (this.ordersService.diagnostics()?.level === 'critical' ? 'CRITICAL' : 'WARNING')
   );
+  protected readonly isDiagnosticCritical = computed(
+    () => this.ordersService.diagnostics()?.level === 'critical'
+  );
 
   constructor() {
-    this.themeService.init();
     this.ordersService.init();
-    inject(DestroyRef).onDestroy(() => this.themeService.destroy());
   }
 }

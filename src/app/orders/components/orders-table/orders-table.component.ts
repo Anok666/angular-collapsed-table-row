@@ -1,10 +1,9 @@
 import { DatePipe, DecimalPipe } from '@angular/common';
-import { ChangeDetectionStrategy, Component, EventEmitter, Input, Output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { SymbolGroup } from '../../orders.types';
-import { TableSummary } from '../../utils/orders.utils';
+import { SymbolGroup, TableSummary } from '../../orders.types';
 
 @Component({
   selector: 'app-orders-table',
@@ -14,10 +13,10 @@ import { TableSummary } from '../../utils/orders.utils';
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class OrdersTableComponent {
-  @Input({ required: true }) groups: SymbolGroup[] = [];
-  @Input({ required: true }) summary!: TableSummary;
+  readonly groups = input.required<SymbolGroup[]>();
+  readonly summary = input.required<TableSummary>();
 
-  @Output() readonly toggleGroup = new EventEmitter<string>();
-  @Output() readonly removeGroup = new EventEmitter<string>();
-  @Output() readonly removeOrder = new EventEmitter<{ symbol: string; orderId: number }>();
+  readonly toggleGroup = output<string>();
+  readonly removeGroup = output<string>();
+  readonly removeOrder = output<{ symbol: string; orderId: number }>();
 }

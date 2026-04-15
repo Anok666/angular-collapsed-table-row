@@ -5,9 +5,7 @@
       <p>Tabela z grupowaniem po symbolu i możliwością rozwijania szczegółów.</p>
     </div>
     <app-theme-controls
-      [themeMode]="themeService.themeMode()"
       [themePreference]="themeService.themePreference()"
-      (toggleTheme)="themeService.toggleLightDark()"
       (preferenceChange)="themeService.setThemePreference($event)"
     />
   </header>
@@ -26,7 +24,7 @@
   @if (showDiagnostics()) {
     <div
       class="state-message state-message--diagnostics"
-      [class.state-message--critical]="ordersService.diagnostics()?.level === 'critical'"
+      [class.state-message--critical]="isDiagnosticCritical()"
       role="status"
       aria-live="polite"
     >

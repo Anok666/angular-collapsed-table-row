@@ -1,12 +1,4 @@
-import { ApiOrder, Order, SymbolGroup } from '../orders.types';
-
-export interface TableSummary {
-  totalCount: number;
-  openPriceAvg: number;
-  swapSum: number;
-  profitAvg: number;
-  sizeSum: number;
-}
+import { ApiOrder, Order, SymbolGroup, TableSummary } from '../orders.types';
 
 export type InvalidOrderInfo = {
   reason: string;

@@ -11,7 +11,7 @@
       </tr>
     </thead>
     <tbody>
-      @for (group of groups; track group.symbol) {
+      @for (group of groups(); track group.symbol) {
         <tr class="group-row" (click)="toggleGroup.emit(group.symbol)">
           <td>
             <div class="cell-symbol">
@@ -105,26 +105,26 @@
       <tr class="summary-row">
         <td>
           <span class="summary-label">Łącznie</span>
-          <span class="summary-count">({{ summary.totalCount }})</span>
+          <span class="summary-count">({{ summary().totalCount }})</span>
         </td>
         <td>
           <span class="summary-label">Śr.</span>
-          {{ summary.openPriceAvg | number: '1.2-5' }}
+          {{ summary().openPriceAvg | number: '1.2-5' }}
         </td>
         <td>
           <span class="summary-label">Σ</span>
-          {{ summary.swapSum | number: '1.2-5' }}
+          {{ summary().swapSum | number: '1.2-5' }}
         </td>
         <td
-          [class.profit-positive]="summary.profitAvg > 0"
-          [class.profit-negative]="summary.profitAvg < 0"
+          [class.profit-positive]="summary().profitAvg > 0"
+          [class.profit-negative]="summary().profitAvg < 0"
         >
           <span class="summary-label">Śr.</span>
-          {{ summary.profitAvg | number: '1.2-5' }}
+          {{ summary().profitAvg | number: '1.2-5' }}
         </td>
         <td>
           <span class="summary-label">Σ</span>
-          {{ summary.sizeSum | number: '1.2-5' }}
+          {{ summary().sizeSum | number: '1.2-5' }}
         </td>
         <td></td>
       </tr>

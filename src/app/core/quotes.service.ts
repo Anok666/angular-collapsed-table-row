@@ -1,6 +1,5 @@
-import { Injectable } from '@angular/core';
-import { Subject } from 'rxjs';
-import { Subscription } from 'rxjs';
+import { DestroyRef, Injectable, inject } from '@angular/core';
+import { Subject, Subscription } from 'rxjs';
 import { WebSocketSubject, webSocket } from 'rxjs/webSocket';
 import { ParseQuoteIssue, QuoteBidUpdate, diffSymbolSubscriptions, parseQuoteBidUpdates } from './quotes.helpers';
 
@@ -8,8 +7,10 @@ export type QuotesServiceDiagnostic =
   | { type: 'connection-error'; error: unknown }
   | { type: 'payload-warning'; issue: ParseQuoteIssue };
 
-@Injectable({ providedIn: 'root' })
+@Injectable()
 export class QuotesService {
+  private readonly destroyRef = inject(DestroyRef);
+
   readonly bidUpdates$ = new Subject<QuoteBidUpdate[]>();
   readonly diagnostics$ = new Subject<QuotesServiceDiagnostic>();
 
@@ -17,10 +18,18 @@ export class QuotesService {
   private quotesSocket: WebSocketSubject<unknown> | null = null;
   private quotesSubscription: Subscription | null = null;
   private reconnectTimerId: ReturnType<typeof setTimeout> | null = null;
-  private isDestroyed = false;
 
   private readonly subscribedSymbols = new Set<string>();
   private desiredSymbols = new Set<string>();
+
+  constructor() {
+    this.destroyRef.onDestroy(() => {
+      this.reconnectTimerId = this.clearTimer(this.reconnectTimerId);
+      this.closeSocket();
+      this.quotesSubscription?.unsubscribe();
+      this.quotesSubscription = null;
+    });
+  }
 
   connect(socketUrl: string): void {
     this.socketUrl = socketUrl;
@@ -30,14 +39,6 @@ export class QuotesService {
   setDesiredSymbols(symbols: Set<string>): void {
     this.desiredSymbols = new Set(symbols);
     this.syncSubscriptions();
-  }
-
-  destroy(): void {
-    this.isDestroyed = true;
-    this.reconnectTimerId = this.clearTimer(this.reconnectTimerId);
-    this.closeSocket();
-    this.quotesSubscription?.unsubscribe();
-    this.quotesSubscription = null;
   }
 
   private connectSocket(): void {
@@ -93,7 +94,7 @@ export class QuotesService {
   }
 
   private scheduleReconnect(): void {
-    if (this.isDestroyed || this.desiredSymbols.size === 0 || this.reconnectTimerId !== null) {
+    if (this.desiredSymbols.size === 0 || this.reconnectTimerId !== null) {
       return;
     }
 
