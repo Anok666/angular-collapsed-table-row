@@ -1,4 +1,14 @@
-import { QuoteSocketEvent } from '../orders/orders.types';
+export type QuotesSubscribedEvent = {
+  p: '/quotes/subscribed';
+  d: Array<{
+    s: string;
+    b: number;
+    a: number;
+    t: number;
+  }>;
+};
+
+export type QuoteSocketEvent = QuotesSubscribedEvent | { p: string; d?: unknown };
 
 export type QuoteBidUpdate = {
   symbol: string;

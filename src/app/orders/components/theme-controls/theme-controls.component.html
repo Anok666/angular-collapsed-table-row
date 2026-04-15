@@ -1,6 +1,6 @@
 <div class="theme-controls">
   <mat-button-toggle-group
-    [value]="themePreference"
+    [value]="themePreference()"
     (change)="onToggleChange($event.value)"
     aria-label="Wybór motywu"
     hideSingleSelectionIndicator

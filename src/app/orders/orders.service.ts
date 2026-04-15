@@ -2,6 +2,8 @@ import { HttpClient } from '@angular/common/http';
 import { DestroyRef, Injectable, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { MatSnackBar } from '@angular/material/snack-bar';
+import { EMPTY, Subject } from 'rxjs';
+import { catchError, switchMap } from 'rxjs/operators';
 import { ApiOrder } from './orders.types';
 import {
   buildCloseMessage,
@@ -28,6 +30,7 @@ export class OrdersService {
   private readonly _orders = signal<ApiOrder[]>([]);
   private readonly _bidBySymbol = signal<Map<string, number>>(new Map());
   private readonly _expandedSymbols = signal<ReadonlySet<string>>(new Set());
+  private readonly loadTrigger$ = new Subject<void>();
 
   readonly isLoading = signal(true);
   readonly errorMessage = signal('');
@@ -39,6 +42,40 @@ export class OrdersService {
   readonly summary = computed(() => buildTableSummary(this.groups()));
 
   constructor() {
+    this.loadTrigger$
+      .pipe(
+        switchMap(() =>
+          this.http.get<unknown>(this.ordersUrl).pipe(
+            catchError((err) => {
+              this.report('HTTP_FETCH_FAILED', err);
+              this.errorMessage.set('Nie udało się pobrać danych zleceń. Spróbuj ponownie.');
+              this.isLoading.set(false);
+              return EMPTY;
+            })
+          )
+        ),
+        takeUntilDestroyed(this.destroyRef)
+      )
+      .subscribe((response) => {
+        let invalidCount = 0;
+        this._orders.set(
+          extractOrders(response, (info) => {
+            invalidCount++;
+            this.report('DATA_VALIDATION_WARNING', info);
+          })
+        );
+        this._expandedSymbols.set(new Set());
+        this.isLoading.set(false);
+
+        if (invalidCount > 0) {
+          this.report('DATA_PARTIAL_VALIDATION', `Pominieto ${invalidCount} niepoprawnych rekordow z API.`);
+        }
+        if (this._orders().length === 0) {
+          this.report('DATA_EMPTY_AFTER_VALIDATION');
+        }
+        this.syncQuoteSubscriptions();
+      });
+
     this.quotesService.bidUpdates$
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((updates) => this.onBidUpdates(updates));
@@ -46,8 +83,6 @@ export class OrdersService {
     this.quotesService.diagnostics$
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((d) => this.onQuotesDiagnostic(d));
-
-    this.destroyRef.onDestroy(() => this.quotesService.destroy());
   }
 
   init(): void {
@@ -93,36 +128,7 @@ export class OrdersService {
     this.isLoading.set(true);
     this.errorMessage.set('');
     this.diagnostics.set(null);
-
-    this.http
-      .get<unknown>(this.ordersUrl)
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (response) => {
-          let invalidCount = 0;
-          this._orders.set(
-            extractOrders(response, (info) => {
-              invalidCount++;
-              this.report('DATA_VALIDATION_WARNING', info);
-            })
-          );
-          this._expandedSymbols.set(new Set());
-          this.isLoading.set(false);
-
-          if (invalidCount > 0) {
-            this.report('DATA_PARTIAL_VALIDATION', `Pominieto ${invalidCount} niepoprawnych rekordow z API.`);
-          }
-          if (this._orders().length === 0) {
-            this.report('DATA_EMPTY_AFTER_VALIDATION');
-          }
-          this.syncQuoteSubscriptions();
-        },
-        error: (err) => {
-          this.report('HTTP_FETCH_FAILED', err);
-          this.errorMessage.set('Nie udało się pobrać danych zleceń. Spróbuj ponownie.');
-          this.isLoading.set(false);
-        }
-      });
+    this.loadTrigger$.next();
   }
 
   private onBidUpdates(updates: QuoteBidUpdate[]): void {

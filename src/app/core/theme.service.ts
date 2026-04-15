@@ -1,49 +1,44 @@
-import { Injectable, computed, effect, signal } from '@angular/core';
-import { BrowserStorage, ResolvedThemeMode, ThemePreference } from '../orders/orders.types';
+import { DOCUMENT, isPlatformBrowser } from '@angular/common';
+import { DestroyRef, Injectable, PLATFORM_ID, computed, effect, inject, signal } from '@angular/core';
+import { ResolvedThemeMode, ThemePreference } from '../orders/orders.types';
 
 @Injectable({ providedIn: 'root' })
 export class ThemeService {
+  private readonly platformId = inject(PLATFORM_ID);
+  private readonly document = inject(DOCUMENT);
+  private readonly destroyRef = inject(DestroyRef);
+
   private readonly themeStorageKey = 'orders-theme-preference';
   private mediaQueryList: MediaQueryList | null = null;
-  private mediaQueryListener: ((event: MediaQueryListEvent) => void) | null = null;
+  private mediaQueryListener: (() => void) | null = null;
 
   readonly themePreference = signal<ThemePreference>(this.readStoredThemePreference());
   private readonly systemPrefersDark = signal(this.readSystemPrefersDark());
 
   readonly themeMode = computed<ResolvedThemeMode>(() => {
     const pref = this.themePreference();
-    if (pref === 'system') {
-      return this.systemPrefersDark() ? 'dark' : 'light';
-    }
-    return pref;
+    return pref === 'system' ? (this.systemPrefersDark() ? 'dark' : 'light') : pref;
   });
 
   private readonly syncDocumentTheme = effect(() => {
+    if (!isPlatformBrowser(this.platformId)) return;
     const mode = this.themeMode();
-    if (typeof document === 'undefined') {
-      return;
-    }
-
-    document.documentElement.setAttribute('data-theme', mode);
-    document.documentElement.style.colorScheme = mode;
+    this.document.documentElement.setAttribute('data-theme', mode);
+    this.document.documentElement.style.colorScheme = mode;
   });
 
-  init(): void {
+  constructor() {
     this.initSystemThemeListener();
-  }
-
-  destroy(): void {
-    this.detachSystemThemeListener();
+    this.destroyRef.onDestroy(() => this.detachSystemThemeListener());
   }
 
   toggleLightDark(): void {
-    const next: ThemePreference = this.themeMode() === 'dark' ? 'light' : 'dark';
-    this.setThemePreference(next);
+    this.setThemePreference(this.themeMode() === 'dark' ? 'light' : 'dark');
   }
 
   setThemePreference(mode: ThemePreference): void {
     this.themePreference.set(mode);
-    this.getBrowserStorage()?.setItem(this.themeStorageKey, mode);
+    this.getLocalStorage()?.setItem(this.themeStorageKey, mode);
   }
 
   private isThemePreference(value: string | null | undefined): value is ThemePreference {
@@ -51,85 +46,48 @@ export class ThemeService {
   }
 
   private readStoredThemePreference(): ThemePreference {
-    // Guard for non-browser environments (SSR/tests/prerender).
-    if (typeof window === 'undefined') {
-      return 'system';
-    }
-
-    const storedTheme = this.getBrowserStorage()?.getItem(this.themeStorageKey);
-    if (this.isThemePreference(storedTheme)) {
-      return storedTheme;
-    }
-
-    return 'system';
+    if (!isPlatformBrowser(this.platformId)) return 'system';
+    const stored = this.getLocalStorage()?.getItem(this.themeStorageKey);
+    return this.isThemePreference(stored) ? stored : 'system';
   }
 
   private readSystemPrefersDark(): boolean {
-    // Guard for non-browser environments (SSR/tests/prerender).
-    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
-      return false;
-    }
-
-    return window.matchMedia('(prefers-color-scheme: dark)').matches;
+    if (!isPlatformBrowser(this.platformId)) return false;
+    const win = this.document.defaultView;
+    if (!win || typeof win.matchMedia !== 'function') return false;
+    return win.matchMedia('(prefers-color-scheme: dark)').matches;
   }
 
   private initSystemThemeListener(): void {
-    // Guard for non-browser environments (SSR/tests/prerender).
-    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
-      return;
-    }
+    if (!isPlatformBrowser(this.platformId)) return;
 
-    this.mediaQueryList = window.matchMedia('(prefers-color-scheme: dark)');
+    const win = this.document.defaultView;
+    if (!win || typeof win.matchMedia !== 'function') return;
+
+    this.mediaQueryList = win.matchMedia('(prefers-color-scheme: dark)');
     this.mediaQueryListener = () => {
-      this.systemPrefersDark.set(window.matchMedia('(prefers-color-scheme: dark)').matches);
+      this.systemPrefersDark.set(
+        win.matchMedia('(prefers-color-scheme: dark)').matches
+      );
     };
-
-    if (typeof this.mediaQueryList.addEventListener === 'function') {
-      this.mediaQueryList.addEventListener('change', this.mediaQueryListener);
-      return;
-    }
-
-    const legacyMediaQueryList = this.mediaQueryList as MediaQueryList & {
-      addListener?: (listener: (event: MediaQueryListEvent) => void) => void;
-    };
-    legacyMediaQueryList.addListener?.(this.mediaQueryListener);
+    this.mediaQueryList.addEventListener('change', this.mediaQueryListener);
   }
 
   private detachSystemThemeListener(): void {
-    if (!this.mediaQueryList || !this.mediaQueryListener) {
-      return;
-    }
-
-    if (typeof this.mediaQueryList.removeEventListener === 'function') {
-      this.mediaQueryList.removeEventListener('change', this.mediaQueryListener);
-      return;
-    }
-
-    const legacyMediaQueryList = this.mediaQueryList as MediaQueryList & {
-      removeListener?: (listener: (event: MediaQueryListEvent) => void) => void;
-    };
-    legacyMediaQueryList.removeListener?.(this.mediaQueryListener);
+    if (!this.mediaQueryList || !this.mediaQueryListener) return;
+    this.mediaQueryList.removeEventListener('change', this.mediaQueryListener);
+    this.mediaQueryList = null;
+    this.mediaQueryListener = null;
   }
 
-  private getBrowserStorage(): BrowserStorage | null {
-    // Guard for non-browser environments (SSR/tests/prerender).
-    if (typeof window === 'undefined') {
-      return null;
-    }
-
-    let storage: Partial<BrowserStorage> | undefined;
+  private getLocalStorage(): Storage | null {
+    if (!isPlatformBrowser(this.platformId)) return null;
     try {
-      storage = (window as Window & { localStorage?: unknown }).localStorage as
-        | Partial<BrowserStorage>
-        | undefined;
+      const storage = this.document.defaultView?.localStorage;
+      if (!storage || typeof storage.getItem !== 'function') return null;
+      return storage;
     } catch {
       return null;
     }
-
-    if (!storage || typeof storage.getItem !== 'function' || typeof storage.setItem !== 'function') {
-      return null;
-    }
-
-    return storage as BrowserStorage;
   }
 }
