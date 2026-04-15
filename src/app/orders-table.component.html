@@ -13,12 +13,14 @@
     <tbody>
       @for (group of groups; track group.symbol) {
         <tr class="group-row" (click)="toggleGroup.emit(group.symbol)">
-          <td class="cell-symbol">
-            <mat-icon class="group-toggle-icon">
-              {{ group.expanded ? 'keyboard_arrow_down' : 'keyboard_arrow_right' }}
-            </mat-icon>
-            <span>{{ group.symbol }}</span>
-            <span class="group-count">({{ group.count }})</span>
+          <td>
+            <div class="cell-symbol">
+              <mat-icon class="group-toggle-icon">
+                {{ group.expanded ? 'keyboard_arrow_down' : 'keyboard_arrow_right' }}
+              </mat-icon>
+              <span>{{ group.symbol }}</span>
+              <span class="group-count">({{ group.count }})</span>
+            </div>
           </td>
           <td>{{ group.openPriceAvg | number: '1.2-5' }}</td>
           <td>{{ group.swapSum | number: '1.2-5' }}</td>
