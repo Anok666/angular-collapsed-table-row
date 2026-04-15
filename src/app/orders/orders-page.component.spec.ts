@@ -52,15 +52,15 @@ describe('OrdersPageComponent', () => {
 
   it('should group orders by symbol after HTTP response', async () => {
     const fixture = await createAndFlushComponent();
-    const app = fixture.componentInstance as any;
+    const { ordersService } = fixture.componentInstance as any;
 
-    expect(app.groups().length).toBe(3);
-    expect(app.groups()[0].symbol).toBe('BTCUSD');
-    expect(app.groups()[0].count).toBe(3);
-    expect(app.groups()[1].symbol).toBe('ETHUSD');
-    expect(app.groups()[1].count).toBe(2);
-    expect(app.groups()[2].symbol).toBe('AUDCHF');
-    expect(app.groups()[2].count).toBe(1);
+    expect(ordersService.groups().length).toBe(3);
+    expect(ordersService.groups()[0].symbol).toBe('BTCUSD');
+    expect(ordersService.groups()[0].count).toBe(3);
+    expect(ordersService.groups()[1].symbol).toBe('ETHUSD');
+    expect(ordersService.groups()[1].count).toBe(2);
+    expect(ordersService.groups()[2].symbol).toBe('AUDCHF');
+    expect(ordersService.groups()[2].count).toBe(1);
   });
 
   it('should subscribe websocket for all loaded symbols', async () => {
@@ -79,7 +79,7 @@ describe('OrdersPageComponent', () => {
 
   it('should calculate profit using quote bid values', async () => {
     const fixture = await createAndFlushComponent();
-    const app = fixture.componentInstance as any;
+    const { ordersService } = fixture.componentInstance as any;
     const socket = MockWebSocket.instances[0];
 
     socket.emitMessage({
@@ -91,12 +91,12 @@ describe('OrdersPageComponent', () => {
       ]
     });
 
-    const btcGroup = app.groups().find((group: any) => group.symbol === 'BTCUSD');
-    const ethGroup = app.groups().find((group: any) => group.symbol === 'ETHUSD');
+    const btcGroup = ordersService.groups().find((g: any) => g.symbol === 'BTCUSD');
+    const ethGroup = ordersService.groups().find((g: any) => g.symbol === 'ETHUSD');
 
-    const btcBuyOrder = btcGroup.orders.find((order: any) => order.id === 1203384);
-    const btcSellOrder = btcGroup.orders.find((order: any) => order.id === 1226230);
-    const ethBuyOrder = ethGroup.orders.find((order: any) => order.id === 1226254);
+    const btcBuyOrder = btcGroup.orders.find((o: any) => o.id === 1203384);
+    const btcSellOrder = btcGroup.orders.find((o: any) => o.id === 1226230);
+    const ethBuyOrder = ethGroup.orders.find((o: any) => o.id === 1226254);
 
     expect(btcBuyOrder.profit).toBeCloseTo(4837.47, 2);
     expect(btcSellOrder.profit).toBeCloseTo(18463.98, 2);
@@ -107,12 +107,12 @@ describe('OrdersPageComponent', () => {
     const snackBar = TestBed.inject(MatSnackBar);
     const openSpy = vi.spyOn(snackBar, 'open');
     const fixture = await createAndFlushComponent();
-    const app = fixture.componentInstance as any;
+    const { ordersService } = fixture.componentInstance as any;
 
-    app.removeOrder('BTCUSD', 1203384);
+    ordersService.removeOrder('BTCUSD', 1203384);
     expect(openSpy).toHaveBeenCalledWith('Zamknięto zlecenie nr 1203384', 'Zamknij', expect.any(Object));
 
-    app.removeGroup('ETHUSD');
+    ordersService.removeGroup('ETHUSD');
     expect(openSpy).toHaveBeenCalledWith(
       'Zamknięto zlecenie nr 1226254, 1226256',
       'Zamknij',
@@ -122,20 +122,20 @@ describe('OrdersPageComponent', () => {
 
   it('should toggle dark/light and support system mode', async () => {
     const fixture = await createAndFlushComponent();
-    const app = fixture.componentInstance as any;
+    const { themeService } = fixture.componentInstance as any;
 
-    app.setThemePreference('light');
-    expect(app.themePreference()).toBe('light');
-    expect(app.themeMode()).toBe('light');
+    themeService.setThemePreference('light');
+    expect(themeService.themePreference()).toBe('light');
+    expect(themeService.themeMode()).toBe('light');
 
-    app.toggleLightDark();
+    themeService.toggleLightDark();
     TestBed.tick();
-    expect(app.themePreference()).toBe('dark');
-    expect(app.themeMode()).toBe('dark');
+    expect(themeService.themePreference()).toBe('dark');
+    expect(themeService.themeMode()).toBe('dark');
     expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
 
-    app.setThemePreference('system');
-    expect(app.themePreference()).toBe('system');
-    expect(['light', 'dark']).toContain(app.themeMode());
+    themeService.setThemePreference('system');
+    expect(themeService.themePreference()).toBe('system');
+    expect(['light', 'dark']).toContain(themeService.themeMode());
   });
 });

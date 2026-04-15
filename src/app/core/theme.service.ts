@@ -1,6 +1,5 @@
 import { Injectable, computed, effect, signal } from '@angular/core';
 import { BrowserStorage, ResolvedThemeMode, ThemePreference } from '../orders/orders.types';
-import { isThemePreference } from '../orders/utils/orders.helpers';
 
 @Injectable({ providedIn: 'root' })
 export class ThemeService {
@@ -47,6 +46,10 @@ export class ThemeService {
     this.getBrowserStorage()?.setItem(this.themeStorageKey, mode);
   }
 
+  private isThemePreference(value: string | null | undefined): value is ThemePreference {
+    return value === 'light' || value === 'dark' || value === 'system';
+  }
+
   private readStoredThemePreference(): ThemePreference {
     // Guard for non-browser environments (SSR/tests/prerender).
     if (typeof window === 'undefined') {
@@ -54,7 +57,7 @@ export class ThemeService {
     }
 
     const storedTheme = this.getBrowserStorage()?.getItem(this.themeStorageKey);
-    if (isThemePreference(storedTheme)) {
+    if (this.isThemePreference(storedTheme)) {
       return storedTheme;
     }
 

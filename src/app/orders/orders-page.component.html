@@ -1,55 +1,52 @@
-<main class="orders-page" [class.dark-mode]="themeMode() === 'dark'">
+<main class="orders-page" [class.dark-mode]="isDarkMode()">
   <header class="page-header">
     <div class="page-header__title">
       <h1>Zlecenia</h1>
       <p>Tabela z grupowaniem po symbolu i możliwością rozwijania szczegółów.</p>
     </div>
     <app-theme-controls
-      [themeMode]="themeMode()"
-      [themePreference]="themePreference()"
-      (toggleTheme)="toggleLightDark()"
-      (preferenceChange)="setThemePreference($event)"
+      [themeMode]="themeService.themeMode()"
+      [themePreference]="themeService.themePreference()"
+      (toggleTheme)="themeService.toggleLightDark()"
+      (preferenceChange)="themeService.setThemePreference($event)"
     />
   </header>
 
-  @if (isLoading()) {
+  @if (ordersService.isLoading()) {
     <p class="state-message">Pobieranie danych...</p>
   }
 
-  @if (!isLoading() && errorMessage()) {
+  @if (ordersService.errorMessage()) {
     <div class="state-message state-message--error">
-      <p>{{ errorMessage() }}</p>
-      <button type="button" class="action-btn" (click)="retryLoad()">Ponów</button>
+      <p>{{ ordersService.errorMessage() }}</p>
+      <button type="button" class="action-btn" (click)="ordersService.retryLoad()">Ponów</button>
     </div>
   }
 
-  @if (!isLoading() && !errorMessage() && diagnostics()) {
+  @if (showDiagnostics()) {
     <div
       class="state-message state-message--diagnostics"
-      [class.state-message--critical]="diagnostics()?.level === 'critical'"
+      [class.state-message--critical]="ordersService.diagnostics()?.level === 'critical'"
       role="status"
       aria-live="polite"
     >
-      <p class="diagnostics-line">
-        [{{ diagnostics()?.level === 'critical' ? 'CRITICAL' : 'WARNING' }}]
-        {{ diagnostics()?.code }}
-      </p>
-      <p>{{ diagnostics()?.message }}</p>
-      <p class="diagnostics-time">{{ diagnostics()?.timestamp }}</p>
+      <p class="diagnostics-line">[{{ diagnosticsLabel() }}] {{ ordersService.diagnostics()?.code }}</p>
+      <p>{{ ordersService.diagnostics()?.message }}</p>
+      <p class="diagnostics-time">{{ ordersService.diagnostics()?.timestamp }}</p>
     </div>
   }
 
-  @if (!isLoading() && !errorMessage() && groups().length > 0) {
+  @if (showTable()) {
     <app-orders-table
-      [groups]="groups()"
-      [summary]="summary()"
-      (toggleGroup)="toggleGroup($event)"
-      (removeGroup)="removeGroup($event)"
-      (removeOrder)="removeOrder($event.symbol, $event.orderId)"
+      [groups]="ordersService.groups()"
+      [summary]="ordersService.summary()"
+      (toggleGroup)="ordersService.toggleGroup($event)"
+      (removeGroup)="ordersService.removeGroup($event)"
+      (removeOrder)="ordersService.removeOrder($event.symbol, $event.orderId)"
     />
   }
 
-  @if (!isLoading() && !errorMessage() && groups().length === 0) {
+  @if (showEmpty()) {
     <p class="state-message">Brak danych do wyświetlenia w tabeli.</p>
   }
 </main>
