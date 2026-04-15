@@ -1,90 +1,120 @@
 # Angular Collapsed Table Row
 
-Prosta aplikacja Angular (TypeScript), która:
-- pobiera zlecenia przez HTTP,
-- grupuje je po `symbol`,
-- rozwija szczegóły po kliknięciu w grupę,
-- liczy `profit` na podstawie aktualnych kwotowań z WebSocket,
-- pozwala usuwać pojedyncze zlecenia i całe grupy,
-- pokazuje komunikat `Zamknięto zlecenie nr ...`,
-- obsługuje motyw `light / dark / system`.
+Aplikacja Angular (TypeScript) wyświetlająca tabelę zleceń z grupowaniem, live kwotowaniami i motywem jasnym/ciemnym.
+
+## Funkcjonalności
+
+- pobieranie zleceń przez HTTP z `https://geeksoft.pl/assets/order-data.json`
+- grupowanie zleceń po polu `symbol`
+- wiersze grup z wartościami agregowanymi (avg open price, Σ swap, avg profit, Σ size)
+- rozwijanie szczegółów grupy po kliknięciu
+- live obliczanie `profit` na podstawie kwotowań z WebSocket (`wss://webquotes.geeksoft.pl/websocket/quotes`)
+- usuwanie pojedynczych zleceń i całych grup z komunikatem snackbar
+- wiersz podsumowania (agregacja wszystkich grup)
+- motyw `light / dark / system` z automatycznym wykrywaniem preferencji urządzenia
+
+## Stack
+
+- **Angular 21** — standalone components, zoneless (`provideZonelessChangeDetection`), `ChangeDetectionStrategy.OnPush`, signals
+- **Angular Material 21** — `MatSnackBar`, `MatButtonToggleGroup`, `MatIconButton`
+- **RxJS** — `WebSocketSubject`, `takeUntilDestroyed`
+- **Vitest** — testy jednostkowe i e2e-style
 
 ## Wymagania
+
 - Node.js 20.x lub 22.x (zalecane LTS)
 - npm
 
 ## Instalacja
+
 ```bash
 npm install
 ```
 
 ## Uruchomienie
-Standardowo:
+
 ```bash
 npm run start
 ```
 
 Na konkretnym porcie:
+
 ```bash
 npm run start -- --host 0.0.0.0 --port 4333
 ```
 
 ## Testy
+
 ```bash
 npm test -- --watch=false
 ```
 
-Testy obejmują:
-- logikę grupowania i przeliczania `profit`,
-- subskrypcję WebSocket,
-- usuwanie zleceń/grup i snackbar,
-- scenariusze e2e-style na DOM (widoczność tabeli po load, rozwijanie grup, aktualizacje po quote).
+Pokrycie testami:
+- grupowanie i przeliczanie `profit`
+- subskrypcja WebSocket i aktualizacje kwotowań
+- usuwanie zleceń/grup i komunikat snackbar
+- scenariusze e2e-style: renderowanie DOM, rozwijanie grup, live update profit
 
-## Struktura
-- `src/app/app.ts` - orchestration komponentu (UI state, HTTP, WebSocket, theme)
-- `src/app/orders.types.ts` - typy domenowe
-- `src/app/orders.utils.ts` - parsowanie API, grupowanie, wyliczenia
-- `src/app/app.spec.ts` - testy logiki
-- `src/app/app.e2e.spec.ts` - testy przepływów użytkownika (e2e-style)
+## Struktura projektu
 
-## Checklista pod oddanie
-### Funkcjonalna (1-9)
-- [ ] 1. Dane tabeli są pobierane requestem HTTP z `https://geeksoft.pl/assets/order-data.json`.
-- [ ] 2. Tabela grupuje zlecenia po polu `symbol`.
-- [ ] 3. Startowo widoczne są tylko wiersze grup (bez wierszy szczegółów).
-- [ ] 4. Wiersz grupy pokazuje: `symbol (liczba zleceń)`, `open price` (średnia), `swap` (suma), `profit` (średnia), `size` (suma).
-- [ ] 5. Kliknięcie w grupę rozwija pełne dane zleceń; `openTime` ma format `dd.MM.yyyy HH:mm:ss`.
-- [ ] 6. Każdy wiersz (grupy i szczegółu) ma przycisk zamknięcia/usunięcia.
-- [ ] 7. Po zamknięciu pokazuje się komunikat `Zamknięto zlecenie nr xxx` (dla grupy lista ID po przecinku).
-- [ ] 8. Komunikat działa jako snackbar/alert (w projekcie: snackbar custom).
-- [ ] 9. `profit` liczony jest wg wzoru `(closePrice - priceBid) * multiplier * sideMultiplier / 100`, gdzie `priceBid` pochodzi z WebSocket `wss://webquotes.geeksoft.pl/websocket/quotes`.
+```
+src/app/
+├── app.ts                          # orkiestrator — HTTP, WebSocket, stan UI, motyw
+├── app.html / app.css              # szablon i style komponentu App
+├── orders-table.component.*        # tabela zleceń (prezentacyjna, @Input/@Output)
+├── theme-controls.component.*      # przełącznik motywu (mat-button-toggle-group)
+├── quotes.service.ts               # WebSocket — połączenie, subskrypcje, reconnect
+├── theme.service.ts                # motyw light/dark/system, localStorage, matchMedia
+├── orders.utils.ts                 # grupowanie, obliczenia profit, agregacje
+├── app.helpers.ts                  # pure functions: operacje na zleceniach, parsowanie WS
+├── orders.types.ts                 # typy domenowe
+├── diagnostics.ts                  # kody i poziomy diagnostyczne
+└── testing/                        # MockWebSocket, mock danych API
+```
 
-### Must-have (motywy)
-- [ ] Light theme: tło główne `rgb(233, 237, 241)`, tekst `rgb(14, 15, 26)`, tło wiersza `rgb(220, 225, 229)`, hover `rgb(201, 209, 216)`, profit + `rgb(60, 193, 149)`, profit - `rgb(249, 76, 76)`.
-- [ ] Dark theme: tło główne `rgb(42, 56, 71)`, tekst `rgb(198, 210, 219)`, tło wiersza `rgba(14, 15, 26, .25)`, hover `rgba(53, 71, 89, .5)`, profit + `rgb(60, 193, 149)`, profit - `rgb(249, 76, 76)`.
-- [ ] Aplikacja rozpoznaje motyw systemu (`system`) i pozwala ręcznie przełączyć `light/dark`.
-- [ ] Działanie sprawdzone na najnowszych przeglądarkach: Chrome, Opera, Safari.
+## Checklista wymagań
 
-### Szybka weryfikacja ręczna
-1. Uruchom aplikację: `npm run start -- --host 127.0.0.1 --port 4311`.
-2. Otwórz [http://127.0.0.1:4311/](http://127.0.0.1:4311/).
-3. Rozwiń grupy i sprawdź format daty oraz wartości agregowane.
-4. Usuń pojedynczy wiersz i całą grupę, potwierdź treść snackbara.
-5. Zmień motyw na `light`, `dark`, `system` i zweryfikuj kolory.
-6. Uruchom testy: `npm test -- --watch=false`.
+### Funkcjonalna
+
+- [x] 1. Dane pobierane przez HTTP z `https://geeksoft.pl/assets/order-data.json`
+- [x] 2. Grupowanie po `symbol`
+- [x] 3. Startowo tylko wiersze grup
+- [x] 4. Wiersz grupy: `symbol (count)`, avg open price, Σ swap, avg profit, Σ size
+- [x] 5. Kliknięcie rozwija szczegóły; `openTime` w formacie `dd.MM.yyyy HH:mm:ss`
+- [x] 6. Przycisk usuń przy każdym wierszu (grupy i zlecenia)
+- [x] 7. Komunikat `Zamknięto zlecenie nr xxx` (dla grupy — lista ID po przecinku)
+- [x] 8. Snackbar — `MatSnackBar` z Angular Material
+- [x] 9. `profit = (closePrice - priceBid) * multiplier * sideMultiplier / 100` z WebSocket
+
+### Motyw
+
+- [x] Light: `rgb(233,237,241)` / `rgb(14,15,26)` / `rgb(220,225,229)` / `rgb(201,209,216)`
+- [x] Dark: `rgb(42,56,71)` / `rgb(198,210,219)` / `rgba(14,15,26,.25)` / `rgba(53,71,89,.5)`
+- [x] Profit+: `rgb(60,193,149)` / Profit−: `rgb(249,76,76)` (oba motywy)
+- [x] Automatyczne wykrywanie motywu systemowego (`prefers-color-scheme`)
+- [x] Ręczne przełączanie light / dark / system
+
+## Szybka weryfikacja ręczna
+
+1. Uruchom: `npm run start -- --host 127.0.0.1 --port 4311`
+2. Otwórz [http://127.0.0.1:4311](http://127.0.0.1:4311)
+3. Sprawdź grupowanie i wartości agregowane w wierszach grup
+4. Rozwiń grupę — zweryfikuj format daty i kolumny szczegółów
+5. Usuń zlecenie i grupę — potwierdź treść snackbara
+6. Zmień motyw (light / dark / system) i zweryfikuj kolory
+7. Uruchom testy: `npm test -- --watch=false`
 
 ## Kompatybilność
-Implementacja jest przygotowana pod najnowsze wersje:
-- Chrome
-- Opera
-- Safari
+
+Chrome · Opera · Safari (najnowsze wersje)
 
 ## Najczęstsze problemy
-`ERR_CONNECTION_REFUSED`:
-1. sprawdź, czy serwer działa (`npm run start`),
-2. uruchom na innym porcie (`--port 4333`),
-3. zrób hard refresh (`Cmd/Ctrl + Shift + R`).
 
-Brak odświeżenia danych:
-1. sprawdź tab Network i WebSocket w DevTools,
-2. upewnij się, że nie jest uruchomiona stara instancja aplikacji na innym porcie.
+**`ERR_CONNECTION_REFUSED`**
+1. Sprawdź czy serwer działa (`npm run start`)
+2. Uruchom na innym porcie (`--port 4333`)
+3. Hard refresh (`Cmd/Ctrl + Shift + R`)
+
+**Brak aktualizacji kwotowań**
+1. Sprawdź zakładkę Network → WS w DevTools
+2. Upewnij się że nie działa stara instancja na innym porcie
