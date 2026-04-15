@@ -1,0 +1,37 @@
+<div class="theme-controls">
+  <button
+    type="button"
+    class="theme-btn"
+    (click)="toggleTheme.emit()"
+    [attr.aria-label]="themeMode === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'"
+  >
+    @if (themeMode === 'light') {
+      <span class="theme-icon sun-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" focusable="false">
+          <circle cx="12" cy="12" r="4"></circle>
+          <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"></path>
+        </svg>
+      </span>
+    }
+    @if (themeMode === 'dark') {
+      <span class="theme-icon moon-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" focusable="false">
+          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+        </svg>
+      </span>
+    }
+    {{ themeMode === 'dark' ? 'Light' : 'Dark' }}
+  </button>
+  <label class="theme-select-label" for="theme-preference">Mode</label>
+  <select
+    id="theme-preference"
+    class="theme-select"
+    [value]="themePreference"
+    (change)="onPreferenceChange($event)"
+    aria-label="Theme mode"
+  >
+    <option value="light">Light</option>
+    <option value="dark">Dark</option>
+    <option value="system">System</option>
+  </select>
+</div>
