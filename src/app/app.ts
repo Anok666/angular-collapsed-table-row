@@ -5,6 +5,7 @@ import {
   DestroyRef,
   OnDestroy,
   OnInit,
+  computed,
   inject,
   signal
 } from '@angular/core';
@@ -26,7 +27,7 @@ import {
   DiagnosticsEntry,
   DiagnosticsLevel
 } from './diagnostics';
-import { buildGroupsFromOrders, extractOrders, InvalidOrderInfo } from './orders.utils';
+import { buildGroupsFromOrders, buildTableSummary, extractOrders, InvalidOrderInfo } from './orders.utils';
 import { OrdersTableComponent } from './orders-table.component';
 import { QuotesService, QuotesServiceDiagnostic } from './quotes.service';
 import { ThemeService } from './theme.service';
@@ -56,6 +57,7 @@ export class App implements OnInit, OnDestroy {
   private readonly expandedSymbolKeys = signal<ReadonlySet<string>>(new Set<string>());
 
   readonly groups = signal<SymbolGroup[]>([]);
+  readonly summary = computed(() => buildTableSummary(this.groups()));
   readonly isLoading = signal(true);
   readonly errorMessage = signal('');
   readonly diagnostics = signal<DiagnosticsEntry | null>(null);
@@ -82,8 +84,6 @@ export class App implements OnInit, OnDestroy {
     this.themeService.destroy();
     this.quotesService.destroy();
     this.snackbarTimerId = this.clearTimer(this.snackbarTimerId);
-    this.quotesSubscription?.unsubscribe();
-    this.quotesSubscription = null;
   }
 
   protected toggleGroup(symbol: string): void {

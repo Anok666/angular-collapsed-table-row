@@ -314,6 +314,32 @@ tbody tr:last-child td {
   font-weight: 700;
 }
 
+.summary-row {
+  font-weight: 700;
+  background: var(--header-bg);
+  border-top: 2px solid var(--border-color);
+}
+
+.summary-row td {
+  border-bottom: 0;
+  color: var(--header-color);
+}
+
+.summary-label {
+  display: inline-block;
+  margin-right: 0.3rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  opacity: 0.65;
+}
+
+.summary-count {
+  font-size: 0.85rem;
+  opacity: 0.75;
+}
+
 @media (max-width: 768px) {
   .orders-page {
     padding: 1rem;
