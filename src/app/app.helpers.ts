@@ -10,18 +10,23 @@ export type ParseQuoteIssue = {
   payload?: unknown;
 };
 
-export function getOrderIdsBySymbol(orders: ApiOrder[], symbol: string): number[] {
-  return orders
-    .filter((order) => order.symbol === symbol)
-    .map((order) => order.id);
-}
-
 export function hasOrderById(orders: ApiOrder[], symbol: string, orderId: number): boolean {
   return orders.some((order) => order.symbol === symbol && order.id === orderId);
 }
 
-export function removeGroupOrders(orders: ApiOrder[], symbol: string): ApiOrder[] {
-  return orders.filter((order) => order.symbol !== symbol);
+export function removeGroupOrders(
+  orders: ApiOrder[],
+  symbol: string
+): { updatedOrders: ApiOrder[]; removedIds: number[] } {
+  const removedIds: number[] = [];
+  const updatedOrders = orders.filter((order) => {
+    if (order.symbol === symbol) {
+      removedIds.push(order.id);
+      return false;
+    }
+    return true;
+  });
+  return { updatedOrders, removedIds };
 }
 
 export function removeSingleOrder(orders: ApiOrder[], symbol: string, orderId: number): ApiOrder[] {
@@ -43,26 +48,22 @@ export function diffSymbolSubscriptions(desiredSymbols: Set<string>, subscribedS
 }
 
 export function parseQuoteBidUpdates(
-  rawData: string,
+  message: unknown,
   onIssue?: (issue: ParseQuoteIssue) => void
 ): QuoteBidUpdate[] {
-  let payload: QuoteSocketEvent | null = null;
-  try {
-    payload = JSON.parse(rawData) as QuoteSocketEvent;
-  } catch (error) {
-    onIssue?.({
-      reason: 'Cannot parse websocket quote payload as JSON.',
-      payload: rawData
-    });
-    console.error('Cannot parse websocket quote payload', error);
+  const payload = message as QuoteSocketEvent | null;
+
+  if (!payload || typeof payload.p !== 'string') {
+    onIssue?.({ reason: 'Websocket message is not a valid event object.', payload: message });
     return [];
   }
 
-  if (!payload || payload.p !== '/quotes/subscribed' || !Array.isArray(payload.d)) {
-    onIssue?.({
-      reason: 'Unexpected websocket event shape.',
-      payload
-    });
+  if (payload.p !== '/quotes/subscribed') {
+    return [];
+  }
+
+  if (!Array.isArray(payload.d)) {
+    onIssue?.({ reason: 'Expected array in "d" field of /quotes/subscribed event.', payload });
     return [];
   }
 

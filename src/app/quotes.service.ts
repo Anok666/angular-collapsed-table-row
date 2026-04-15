@@ -137,7 +137,7 @@ export class QuotesService {
   }
 
   private handleQuoteMessage(message: unknown): void {
-    const updates = parseQuoteBidUpdates(JSON.stringify(message), (issue) =>
+    const updates = parseQuoteBidUpdates(message, (issue) =>
       this.diagnostics$.next({ type: 'payload-warning', issue })
     );
     if (updates.length === 0) {

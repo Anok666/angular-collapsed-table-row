@@ -14,7 +14,6 @@ import { ApiOrder, SymbolGroup, ThemePreference } from './orders.types';
 import {
   applyBidUpdates,
   buildCloseMessage,
-  getOrderIdsBySymbol,
   getOrderSymbols,
   hasOrderById,
   isThemePreference,
@@ -100,20 +99,20 @@ export class App implements OnInit, OnDestroy {
   }
 
   protected removeGroup(symbol: string): void {
-    const orderIds = getOrderIdsBySymbol(this.ordersData, symbol);
+    const { updatedOrders, removedIds } = removeGroupOrders(this.ordersData, symbol);
 
-    if (orderIds.length === 0) {
+    if (removedIds.length === 0) {
       return;
     }
 
-    this.ordersData = removeGroupOrders(this.ordersData, symbol);
+    this.ordersData = updatedOrders;
     this.expandedSymbolKeys.update((prev) => {
       const next = new Set(prev);
       next.delete(symbol);
       return next;
     });
     this.afterOrdersDataChange();
-    this.showCloseMessage(orderIds);
+    this.showSnackbar(buildCloseMessage(removedIds));
   }
 
   protected removeOrder(symbol: string, orderId: number): void {
@@ -123,7 +122,7 @@ export class App implements OnInit, OnDestroy {
 
     this.ordersData = removeSingleOrder(this.ordersData, symbol, orderId);
     this.afterOrdersDataChange();
-    this.showCloseMessage([orderId]);
+    this.showSnackbar(buildCloseMessage([orderId]));
   }
 
   protected retryLoad(): void {
@@ -225,10 +224,6 @@ export class App implements OnInit, OnDestroy {
     }
 
     this.reportDiagnosticsByCode('WS_PAYLOAD_INVALID', diagnostic.issue);
-  }
-
-  private showCloseMessage(orderIds: number[]): void {
-    this.showSnackbar(buildCloseMessage(orderIds));
   }
 
   private showSnackbar(message: string): void {
