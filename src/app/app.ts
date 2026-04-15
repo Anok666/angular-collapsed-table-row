@@ -99,9 +99,7 @@ export class App implements OnInit, OnDestroy {
     this.rebuildGroups();
   }
 
-  protected removeGroup(symbol: string, event: Event): void {
-    event.stopPropagation();
-
+  protected removeGroup(symbol: string): void {
     const orderIds = getOrderIdsBySymbol(this.ordersData, symbol);
 
     if (orderIds.length === 0) {

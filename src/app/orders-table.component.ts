@@ -14,6 +14,6 @@ export class OrdersTableComponent {
   @Input({ required: true }) summary!: TableSummary;
 
   @Output() readonly toggleGroup = new EventEmitter<string>();
-  @Output() readonly removeGroup = new EventEmitter<{ symbol: string; event: Event }>();
+  @Output() readonly removeGroup = new EventEmitter<string>();
   @Output() readonly removeOrder = new EventEmitter<{ symbol: string; orderId: number }>();
 }
