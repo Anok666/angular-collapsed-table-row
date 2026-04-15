@@ -82,6 +82,8 @@ export class App implements OnInit, OnDestroy {
     this.themeService.destroy();
     this.quotesService.destroy();
     this.snackbarTimerId = this.clearTimer(this.snackbarTimerId);
+    this.quotesSubscription?.unsubscribe();
+    this.quotesSubscription = null;
   }
 
   protected toggleGroup(symbol: string): void {
