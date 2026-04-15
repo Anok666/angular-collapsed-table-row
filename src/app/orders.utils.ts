@@ -1,5 +1,13 @@
 import { ApiOrder, Order, SymbolGroup } from './orders.types';
 
+export interface TableSummary {
+  totalCount: number;
+  openPriceAvg: number;
+  swapSum: number;
+  profitAvg: number;
+  sizeSum: number;
+}
+
 export type InvalidOrderInfo = {
   reason: string;
   rawOrder: unknown;
@@ -48,6 +56,22 @@ export function buildGroupsFromOrders(
   return Array.from(groupedOrders.entries()).map(([symbol, orders]) =>
     createGroup(symbol, orders, expandedSymbols.has(symbol))
   );
+}
+
+export function buildTableSummary(groups: SymbolGroup[]): TableSummary {
+  const totalCount = groups.reduce((acc, g) => acc + g.count, 0);
+
+  if (totalCount === 0) {
+    return { totalCount: 0, openPriceAvg: 0, swapSum: 0, profitAvg: 0, sizeSum: 0 };
+  }
+
+  return {
+    totalCount,
+    openPriceAvg: groups.reduce((acc, g) => acc + g.openPriceAvg * g.count, 0) / totalCount,
+    swapSum: groups.reduce((acc, g) => acc + g.swapSum, 0),
+    profitAvg: groups.reduce((acc, g) => acc + g.profitAvg * g.count, 0) / totalCount,
+    sizeSum: groups.reduce((acc, g) => acc + g.sizeSum, 0)
+  };
 }
 
 export function calculateProfit(

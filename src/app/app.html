@@ -42,6 +42,7 @@
   @if (!isLoading() && !errorMessage() && groups().length > 0) {
     <app-orders-table
       [groups]="groups()"
+      [summary]="summary()"
       (toggleGroup)="toggleGroup($event)"
       (removeGroup)="removeGroup($event.symbol, $event.event)"
       (removeOrder)="removeOrder($event.symbol, $event.orderId)"

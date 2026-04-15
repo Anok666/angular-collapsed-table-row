@@ -90,5 +90,33 @@
         }
       }
     </tbody>
+    <tfoot>
+      <tr class="summary-row">
+        <td>
+          <span class="summary-label">Łącznie</span>
+          <span class="summary-count">({{ summary.totalCount }})</span>
+        </td>
+        <td>
+          <span class="summary-label">Śr.</span>
+          {{ summary.openPriceAvg | number: '1.2-5' }}
+        </td>
+        <td>
+          <span class="summary-label">Σ</span>
+          {{ summary.swapSum | number: '1.2-5' }}
+        </td>
+        <td
+          [class.profit-positive]="summary.profitAvg > 0"
+          [class.profit-negative]="summary.profitAvg < 0"
+        >
+          <span class="summary-label">Śr.</span>
+          {{ summary.profitAvg | number: '1.2-5' }}
+        </td>
+        <td>
+          <span class="summary-label">Σ</span>
+          {{ summary.sizeSum | number: '1.2-5' }}
+        </td>
+        <td></td>
+      </tr>
+    </tfoot>
   </table>
 </section>
