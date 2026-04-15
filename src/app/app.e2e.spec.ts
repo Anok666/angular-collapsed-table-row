@@ -1,6 +1,8 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
+import { MatSnackBar } from '@angular/material/snack-bar';
+import { vi } from 'vitest';
 import { App } from './app';
 import { mockOrdersResponse } from './testing/mock-orders-response';
 import { flushMicrotasks, MockWebSocket } from './testing/mock-websocket';
@@ -68,16 +70,22 @@ describe('App E2E-style flows', () => {
     const fixture = await renderApp();
     const root = fixture.nativeElement as HTMLElement;
 
+    const snackBar = TestBed.inject(MatSnackBar);
+    const openSpy = vi.spyOn(snackBar, 'open');
+
     const firstGroupRow = root.querySelector('tr.group-row') as HTMLTableRowElement;
     firstGroupRow.click();
     fixture.detectChanges(false);
 
-    const removeOrderButton = root.querySelector('tr.detail-row .delete-btn') as HTMLButtonElement;
+    const removeOrderButton = root.querySelector('tr.detail-row button[mat-icon-button]') as HTMLButtonElement;
     removeOrderButton.click();
     fixture.detectChanges(false);
 
-    const snackbar = root.querySelector('.snackbar');
-    expect(snackbar?.textContent).toContain('Zamknięto zlecenie nr');
+    expect(openSpy).toHaveBeenCalledWith(
+      expect.stringContaining('Zamknięto zlecenie nr'),
+      'Zamknij',
+      expect.any(Object)
+    );
   });
 
   it('updates profit cells after receiving websocket quotes', async () => {

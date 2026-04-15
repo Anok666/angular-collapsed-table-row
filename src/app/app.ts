@@ -10,6 +10,7 @@ import {
   signal
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { MatSnackBar } from '@angular/material/snack-bar';
 import { ApiOrder, SymbolGroup, ThemePreference } from './orders.types';
 import {
   applyBidUpdates,
@@ -44,13 +45,13 @@ export class App implements OnInit, OnDestroy {
   private readonly destroyRef = inject(DestroyRef);
   private readonly quotesService = inject(QuotesService);
   private readonly themeService = inject(ThemeService);
+  private readonly snackBar = inject(MatSnackBar);
 
   private readonly ordersUrl = 'https://geeksoft.pl/assets/order-data.json';
   private readonly quotesSocketUrl = 'wss://webquotes.geeksoft.pl/websocket/quotes';
 
   private ordersData: ApiOrder[] = [];
   private readonly bidBySymbol = new Map<string, number>();
-  private snackbarTimerId: ReturnType<typeof setTimeout> | null = null;
 
   /** Symbole z rozwiniętymi szczegółami — źródło prawdy zamiast mutacji `group.expanded`. */
   private readonly expandedSymbolKeys = signal<ReadonlySet<string>>(new Set<string>());
@@ -60,9 +61,6 @@ export class App implements OnInit, OnDestroy {
   readonly isLoading = signal(true);
   readonly errorMessage = signal('');
   readonly diagnostics = signal<DiagnosticsEntry | null>(null);
-
-  readonly isSnackbarVisible = signal(false);
-  readonly snackbarMessage = signal('');
 
   readonly themePreference = this.themeService.themePreference;
   readonly themeMode = this.themeService.themeMode;
@@ -82,7 +80,6 @@ export class App implements OnInit, OnDestroy {
   ngOnDestroy(): void {
     this.themeService.destroy();
     this.quotesService.destroy();
-    this.snackbarTimerId = this.clearTimer(this.snackbarTimerId);
   }
 
   protected toggleGroup(symbol: string): void {
@@ -129,24 +126,12 @@ export class App implements OnInit, OnDestroy {
     this.loadOrders();
   }
 
-  protected closeSnackbar(): void {
-    this.isSnackbarVisible.set(false);
-    this.snackbarTimerId = this.clearTimer(this.snackbarTimerId);
-  }
-
   protected toggleLightDark(): void {
     this.themeService.toggleLightDark();
   }
 
   protected setThemePreference(mode: ThemePreference): void {
     this.themeService.setThemePreference(mode);
-  }
-
-  protected onThemePreferenceChange(event: Event): void {
-    const mode = (event.target as HTMLSelectElement | null)?.value;
-    if (isThemePreference(mode)) {
-      this.setThemePreference(mode);
-    }
   }
 
   private loadOrders(): void {
@@ -227,15 +212,7 @@ export class App implements OnInit, OnDestroy {
   }
 
   private showSnackbar(message: string): void {
-    this.snackbarMessage.set(message);
-    this.isSnackbarVisible.set(true);
-
-    this.snackbarTimerId = this.clearTimer(this.snackbarTimerId);
-
-    this.snackbarTimerId = setTimeout(() => {
-      this.isSnackbarVisible.set(false);
-      this.snackbarTimerId = null;
-    }, 3500);
+    this.snackBar.open(message, 'Zamknij', { duration: 3500 });
   }
 
   private afterOrdersDataChange(): void {
@@ -266,7 +243,7 @@ export class App implements OnInit, OnDestroy {
       code,
       level,
       message,
-      timestamp: this.getDiagnosticsTimestamp()
+      timestamp: new Date().toISOString()
     };
 
     this.diagnostics.set(entry);
@@ -278,17 +255,5 @@ export class App implements OnInit, OnDestroy {
     }
 
     console.warn(logPayload, context);
-  }
-
-  private getDiagnosticsTimestamp(): string {
-    return new Date().toISOString();
-  }
-
-  private clearTimer(timerId: ReturnType<typeof setTimeout> | null): null {
-    if (timerId !== null) {
-      clearTimeout(timerId);
-    }
-
-    return null;
   }
 }
