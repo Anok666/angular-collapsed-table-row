@@ -109,7 +109,7 @@ describe('App', () => {
     expect(app.snackbarMessage()).toBe('Zamknięto zlecenie nr 1203384');
     expect(app.isSnackbarVisible()).toBe(true);
 
-    app.removeGroup('ETHUSD', new Event('click'));
+    app.removeGroup('ETHUSD');
     expect(app.snackbarMessage()).toBe('Zamknięto zlecenie nr 1226254, 1226256');
     expect(app.isSnackbarVisible()).toBe(true);
   });

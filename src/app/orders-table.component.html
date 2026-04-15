@@ -30,7 +30,7 @@
             <button
               type="button"
               class="delete-btn"
-              (click)="removeGroup.emit({ symbol: group.symbol, event: $event })"
+              (click)="$event.stopPropagation(); removeGroup.emit(group.symbol)"
               [attr.aria-label]="'Usuń grupę ' + group.symbol"
             >
               ✕
